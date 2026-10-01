@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Plot the equity series already emitted by the real Plutus research runs."""
+"""Render the Step 4 in-sample equity figure from a Plutus report.
+
+The figure deliberately contains one net-of-Plutus-charges curve.  It does not
+invent a gross or fee-free comparator, and it does not splice the separately
+funded out-of-sample account into the in-sample account.
+"""
 from __future__ import annotations
 
 import json
@@ -12,64 +17,60 @@ import matplotlib.pyplot as plt
 import pandas as pd
 
 WORKSPACE = Path(__file__).resolve().parents[1]
-REPORTS = WORKSPACE / "reports"
-FIGURES = REPORTS / "figures"
+REPORT_PATH = WORKSPACE / "reports" / "step4_insample_report.json"
+FIGURES = WORKSPACE / "reports" / "figures"
 
 
-def _load(name: str) -> tuple[dict, pd.DataFrame]:
-    path = REPORTS / name
-    if not path.is_file():
-        raise FileNotFoundError(f"Run the corresponding backtest first: {path}")
-    report = json.loads(path.read_text(encoding="utf-8"))
+def _load() -> tuple[dict, pd.DataFrame]:
+    if not REPORT_PATH.is_file():
+        raise FileNotFoundError(f"Run `make step4` first: {REPORT_PATH}")
+    report = json.loads(REPORT_PATH.read_text(encoding="utf-8"))
     frame = pd.DataFrame(report["daily_equity"])
+    if frame.empty:
+        raise ValueError("The Step 4 report has no daily equity observations")
     frame["date"] = pd.to_datetime(frame["date"])
     return report, frame
 
 
 def main() -> None:
-    in_sample, is_frame = _load("step4_insample_report.json")
-    out_sample, oos_frame = _load("step6_outsample_report.json")
-    FIGURES.mkdir(parents=True, exist_ok=True)
+    report, frame = _load()
+    initial_capital = float(report["initial_capital"])
+    equity_index = frame["equity"] / initial_capital
 
-    figure, axis = plt.subplots(figsize=(14, 6))
+    figure, axis = plt.subplots(figsize=(12.5, 5.2))
     axis.plot(
-        is_frame["date"],
-        is_frame["equity"] / 1_000_000,
-        label=f"In-sample — Sharpe {in_sample['sharpe']:.2f}",
-        color="#2563eb",
-        linewidth=1.5,
+        frame["date"],
+        equity_index,
+        color="#1f77b4",
+        linewidth=1.7,
+        label=(
+            f"Luna IS — Sharpe {float(report['sharpe']):.2f} "
+            f"| net return {float(report['return_pct']):.1f}%"
+        ),
     )
-    # OOS starts from a fresh 100m account by design; do not splice it into the
-    # IS wealth curve as though it were one continuously traded account.
-    axis.plot(
-        oos_frame["date"],
-        oos_frame["equity"] / 1_000_000,
-        label=f"Out-of-sample — Sharpe {out_sample['sharpe']:.2f}",
-        color="#ea580c",
-        linewidth=1.5,
-    )
-    axis.axhline(100, color="#64748b", linestyle="--", linewidth=1, label="Initial 100m VND")
-    axis.axvline(pd.Timestamp("2023-01-01"), color="#0f172a", linestyle=":", linewidth=1)
-    axis.set_title("Alpha Luna — equity from real Plutus ExchangeSession runs")
+    axis.axhline(1.0, color="#6b7280", linestyle="--", linewidth=1.0)
     axis.set_xlabel("Date")
-    axis.set_ylabel("Derivatives deposit (million VND)")
-    axis.grid(alpha=0.25)
-    axis.legend(loc="upper left")
-    axis.text(
+    axis.set_ylabel("Equity / initial capital")
+    axis.grid(True, color="#a3a3a3", linewidth=0.7, alpha=0.9)
+    axis.legend(loc="upper left", frameon=True)
+    figure.autofmt_xdate(rotation=30, ha="right")
+    figure.text(
         0.99,
-        0.02,
-        "Execution evidence: MODELLED_SOFT_NO_BOOK_DEPTH",
-        transform=axis.transAxes,
+        0.015,
+        "Execution: modelled soft fill; no historical order-book depth",
         ha="right",
         va="bottom",
-        fontsize=9,
-        color="#475569",
+        fontsize=8.5,
+        color="#4b5563",
     )
-    figure.tight_layout()
-    destination = FIGURES / "plutus_backtest_performance.png"
-    figure.savefig(destination, dpi=160, bbox_inches="tight")
+    figure.tight_layout(rect=(0, 0.04, 1, 1))
+
+    FIGURES.mkdir(parents=True, exist_ok=True)
+    for suffix in ("png", "pdf"):
+        destination = FIGURES / f"step4_insample_equity.{suffix}"
+        figure.savefig(destination, dpi=200, bbox_inches="tight")
+        print(f"Saved {destination}")
     plt.close(figure)
-    print(f"Saved {destination}")
 
 
 if __name__ == "__main__":

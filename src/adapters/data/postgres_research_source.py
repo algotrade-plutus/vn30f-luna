@@ -181,8 +181,8 @@ class PostgresResearchSource:
 
     @staticmethod
     def _session_filter(alias: str, minutes: int) -> str:
-        if minutes == 30:
-            return ""
+        if minutes not in (5, 30):
+            raise ValueError(f"Unsupported research bar size: {minutes} minutes")
         return f"""
             AND (({alias}.datetime::time >= TIME '09:00'
                   AND {alias}.datetime::time <= TIME '11:30')

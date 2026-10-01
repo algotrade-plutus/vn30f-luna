@@ -518,7 +518,7 @@ class PlutusResearchRunner:
         failures: list[str] = []
         minimum_sharpe = (
             criteria.min_sharpe_out_of_sample
-            if sample == "out_of_sample"
+            if sample in {"out_of_sample", "forward"}
             else criteria.min_sharpe_in_sample
         )
         if Decimal(str(metrics["sharpe"])) < minimum_sharpe:

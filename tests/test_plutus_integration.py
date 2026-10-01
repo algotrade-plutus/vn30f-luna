@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from datetime import date, datetime, timedelta
 from decimal import Decimal
+from types import SimpleNamespace
 
 import pandas as pd
 from plutus.market.protocol import BandSource, Resolution
@@ -15,6 +16,7 @@ from plutus.market.adapters.depth import (
 from plutus.core.order import Side
 
 from src.adapters.backtesting import PlutusResearchRunner
+from src.adapters.backtesting import plutus_research_runner
 from src.adapters.data import PlutusBarSource, PostgresResearchSource
 from src.domain.strategy.calendar_rules import is_expiry_thursday
 
@@ -107,6 +109,9 @@ def test_postgres_research_query_is_bounded_and_keeps_published_bands() -> None:
     assert "m.datetime >= %s AND m.datetime <= %s" in pool.sql
     assert "v.datetime >= %s AND v.datetime <= %s" in pool.sql
     assert "f.datetime >= %s AND f.datetime <= %s" in pool.sql
+    assert "m.datetime::time >= TIME '09:00'" in pool.sql
+    assert "m.datetime::time <= TIME '11:30'" in pool.sql
+    assert "m.datetime::time >= TIME '13:00'" in pool.sql
     assert len(pool.params) == 14
     assert frame.loc[0, "Contract"] == "VN30F2401"
     assert frame.loc[0, "Reference"] == Decimal("1130")
@@ -126,6 +131,33 @@ def test_short_real_plutus_run_has_fills_and_engine_evidence() -> None:
     assert result.ignorance["indeterminate"] == 0
     assert result.provenance["fill_policy_kind"] == "soft(max_participation=0.10)"
     assert result.fills[0]["timestamp"] > datetime(2024, 1, 2, 9, 0).isoformat()
+
+
+def test_forward_sample_uses_holdout_sharpe_threshold(monkeypatch) -> None:
+    futures, index = _frames()
+    runner = PlutusResearchRunner(PlutusBarSource(futures, index))
+    criteria = SimpleNamespace(
+        min_sharpe_in_sample=Decimal("999"),
+        min_sharpe_out_of_sample=Decimal("-999"),
+        max_drawdown_pct=Decimal("100"),
+        max_peak_margin_utilisation=Decimal("2"),
+        max_margin_calls=999,
+        max_exchange_rejects=999,
+        min_profit_factor=Decimal("0"),
+    )
+    monkeypatch.setattr(
+        plutus_research_runner, "FalsificationCriteria", lambda: criteria
+    )
+    in_sample = runner.run(
+        date(2024, 1, 2), date(2024, 1, 3), sample="in_sample"
+    )
+    forward = runner.run(
+        date(2024, 1, 2), date(2024, 1, 3), sample="forward"
+    )
+
+    assert forward.summary["sample"] == "forward"
+    assert any("Sharpe" in failure for failure in in_sample.summary["failures"])
+    assert not any("Sharpe" in failure for failure in forward.summary["failures"])
 
 
 def test_book_runner_does_not_stack_orders_while_a_limit_is_live() -> None:
