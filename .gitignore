@@ -1,0 +1,44 @@
+.DS_Store
+.env
+**/.env
+!.env.example
+!**/.env.example
+
+.venv/
+**/.venv/
+__pycache__/
+**/__pycache__/
+.pytest_cache/
+**/.ruff_cache/
+coverage.xml
+.coverage
+htmlcov/
+*.py[cod]
+
+data/.cache/
+data/exports/*.parquet
+algotrade/runtime/
+*.db
+*.db-shm
+*.db-wal
+
+# Repository-local research artifacts.
+/docs/
+/data/
+/reports/
+
+# The Plutus engine is recorded as a pinned Git submodule. Its source is
+# tracked in its own repository, rather than vendored into Luna.
+
+# Local editor artifacts
+*.log
+*.swp
+
+plutus-verify/
+.plutus/results/
+.plutus/run/
+.plutus/build/
+.plutus/Dockerfile.generated
+
+# Local Aphelios credentials; source, model, and research artefacts are versioned.
+PS_V30_Vien_Aphelios/config.json

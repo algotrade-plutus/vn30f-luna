@@ -1,0 +1,42 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "luna-vn30f"
+version = "0.1.0"
+description = "Luna VN30F quantitative research and Plutus exchange backtests"
+requires-python = ">=3.12,<3.14"
+dependencies = [
+    "algotrade-plutus",
+    "duckdb>=1.0",
+    "matplotlib>=3.8",
+    "pandas>=2.2",
+    "psycopg2-binary>=2.9",
+    "pyarrow>=15",
+    "pytz>=2024.1",
+]
+
+[tool.uv.sources]
+algotrade-plutus = { path = "plutus", editable = true }
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "pytest-cov>=5",
+    "ruff>=0.8",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src"]
+
+[tool.ruff]
+target-version = "py312"
+extend-exclude = ["plutus", "algotrade/.venv"]
+
+[tool.ruff.lint]
+select = ["E9", "F63", "F7", "F82"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
