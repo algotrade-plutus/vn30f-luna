@@ -27,12 +27,7 @@ algotrade/runtime/
 /data/
 /reports/
 
-# Local experimental alpha material. Keep it out of the Luna repository.
-/PS_V30_Vien_Calibrum/
-/scripts/run_calibrum_plutus.py
-/scripts/plot_calibrum_backtest.py
-/src/adapters/strategies/calibrum_signal_source.py
-/tests/test_calibrum_signal_source.py
+
 
 # The Plutus engine is recorded as a pinned Git submodule. Its source is
 # tracked in its own repository, rather than vendored into Luna.

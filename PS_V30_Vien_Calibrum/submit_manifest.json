@@ -1,0 +1,8 @@
+{
+  "alpha_name": "PS_V30_Vien_Calibrum",
+  "submission_files": [
+    "PS_V30_Vien_Calibrum.py",
+    "config.json",
+    "PS_V30_Vien_Calibrum_model.pt"
+  ]
+}

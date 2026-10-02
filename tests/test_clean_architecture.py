@@ -189,3 +189,88 @@ def test_risk_monitor_use_case_blocks_when_call():
     verdict = monitor.evaluate()
     assert not verdict.can_trade
     assert "exceeds safety threshold" in verdict.message or verdict.status != MarginCallStatus.NORMAL
+
+
+def test_trading_cycle_use_case_with_calibrum_signal_adapter():
+    """Verify TradingCycleUseCase dispatches orders based on CalibrumSignalAdapter."""
+    from src.application.ports.signal_port import ISignalGateway
+    from src.application.use_cases.trading_cycle import TradingCycleUseCase
+    from src.adapters.strategies.calibrum_signal_source import (
+        CalibrumSignalAdapter,
+        CalibrumTargets,
+    )
+
+    t1 = datetime(2024, 1, 2, 9, 30)
+    t2 = datetime(2024, 1, 2, 10, 0)
+    targets = CalibrumTargets(
+        targets={t1: 2, t2: 0},
+        diagnostics={"test": True},
+    )
+    adapter = CalibrumSignalAdapter(targets)
+    assert isinstance(adapter, ISignalGateway)
+
+    submitted_orders = []
+
+    class MockTradingBroker(IBrokerGateway):
+        def __init__(self):
+            self.pos = Position(symbol="VN30F2401")
+
+        def submit_order(self, order):
+            submitted_orders.append(order)
+            if order.side == Side.BUY:
+                self.pos.net_quantity += order.quantity
+            else:
+                self.pos.net_quantity -= order.quantity
+            return True, "ACCEPTED"
+
+        def cancel_order(self, order_id): return True
+        def get_position(self, symbol): return self.pos
+        def get_fills(self): return []
+        def advance_to(self, ts): return []
+        def get_margin(self):
+            return MarginAccount.create(Decimal("100000000")).calculate_status(
+                net_quantity=self.pos.net_quantity,
+                settlement_price=Decimal("1200.0"),
+            )
+
+    broker = MockTradingBroker()
+    monitor = RiskMonitorUseCase(broker=broker)
+    cycle = TradingCycleUseCase(
+        signal_gateway=adapter,
+        broker=broker,
+        risk_monitor=monitor,
+        target_symbol="VN30F2401",
+    )
+
+    # Bar 1 at t1: target is +2 -> Buy 2
+    bar1 = Bar(
+        symbol="VN30F2401",
+        timestamp=t1,
+        open=Decimal("1200"),
+        high=Decimal("1205"),
+        low=Decimal("1198"),
+        close=Decimal("1203"),
+        volume=100,
+    )
+    log1 = cycle.on_bar(bar1)
+    assert log1.target_position == 2
+    assert log1.delta == 2
+    assert log1.order_action == "BUY 2"
+    assert broker.get_position("VN30F2401").net_quantity == 2
+
+    # Bar 2 at t2: target is 0 -> Sell 2
+    bar2 = Bar(
+        symbol="VN30F2401",
+        timestamp=t2,
+        open=Decimal("1203"),
+        high=Decimal("1208"),
+        low=Decimal("1202"),
+        close=Decimal("1207"),
+        volume=120,
+    )
+    log2 = cycle.on_bar(bar2)
+    assert log2.target_position == 0
+    assert log2.delta == -2
+    assert log2.order_action == "SELL 2"
+    assert broker.get_position("VN30F2401").net_quantity == 0
+

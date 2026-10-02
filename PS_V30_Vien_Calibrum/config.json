@@ -1,0 +1,51 @@
+{
+  "name": "PS_V30_Vien_Calibrum",
+  "class_name": "CalibrumAlpha",
+  "author": "Vien",
+  "username": "Vien_PQ",
+  "password": "",
+  "ticker": "vn30f1m",
+  "timeframe": "30m",
+  "alpha_type": "ml",
+  "time_to_start": [
+    "Auto"
+  ],
+  "data": [
+    {
+      "ticker": "vn30f1m",
+      "timeframe": "30m",
+      "bars": 1000,
+      "time_start": "2020-01-01",
+      "time_end": "2022-12-31"
+    },
+    {
+      "ticker": "vn30",
+      "timeframe": "30m",
+      "bars": 1000,
+      "time_start": "2020-01-01",
+      "time_end": "2022-12-31"
+    }
+  ],
+  "parameters": {
+    "model_file": "PS_V30_Vien_Calibrum_model.pt",
+    "ridge_entry_threshold": 0.18,
+    "ridge_min_hold": 2,
+    "ridge_max_hold": 8,
+    "ridge_stop_loss_pts": 10.0,
+    "shinji_window": 40,
+    "shinji_z_entry": 1.5,
+    "shinji_z_exit": 0.0,
+    "shinji_min_hold": 2,
+    "shinji_stop_loss": 14.0,
+    "calendar_long_dows": [
+      1,
+      2
+    ],
+    "calendar_use_month_start": true,
+    "calendar_use_preholiday": true,
+    "calendar_use_monday_short": true,
+    "calendar_use_expiry_thursday": true,
+    "calendar_monday_max_gap": 0.0,
+    "calendar_session_end": "14:30"
+  }
+}
