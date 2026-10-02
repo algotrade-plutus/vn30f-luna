@@ -1,27 +1,22 @@
 UV ?= uv
 
-.PHONY: setup data-audit step4 step5 step6 plot research test lint check
+.PHONY: setup calibrum-insample calibrum-oos calibrum-forward plot test lint check
 
 setup:
 	git submodule update --init --recursive
 	$(UV) sync --frozen
 
-data-audit:
-	$(UV) run python scripts/step2_prepare_data.py
+calibrum-insample:
+	$(UV) run python scripts/run_calibrum_plutus.py --sample in_sample --start 2021-01-15 --end 2022-12-30
 
-step4:
-	$(UV) run python scripts/run_step4_insample.py
+calibrum-oos:
+	$(UV) run python scripts/run_calibrum_plutus.py --sample out_of_sample --start 2023-01-01 --end 2024-12-19
 
-step5:
-	$(UV) run python scripts/run_step5_optimize.py
-
-step6:
-	$(UV) run python scripts/run_step6_outsample.py
+calibrum-forward:
+	$(UV) run python scripts/run_calibrum_plutus.py --sample forward --start 2026-08-25 --end 2026-10-01
 
 plot:
-	$(UV) run python scripts/plot_backtest.py
-
-research: data-audit step4 step5 step6 plot
+	$(UV) run python scripts/plot_calibrum_backtest.py
 
 test:
 	./scripts/run_owned_tests.sh

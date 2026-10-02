@@ -1,5 +1,5 @@
 """Unit and integration tests for Clean Architecture components.
-Verifies pure domain separation, entity invariants, calendar rules, FOMO veto, and risk monitor.
+Verifies pure domain separation, entity invariants, calendar rules, and risk monitor.
 """
 from __future__ import annotations
 
@@ -25,12 +25,8 @@ from src.domain.strategy.calendar_rules import (
     is_trading_day,
     next_trading_day,
 )
-from src.domain.strategy.fomo_gatekeeper import FomoGatekeeper
-from src.domain.strategy.luna_strategy import LunaParameters, LunaStrategy
-from src.domain.strategy.t2_momentum import T2MomentumEngine
 from src.application.ports.broker_port import IBrokerGateway
 from src.application.use_cases.risk_monitor import RiskMonitorUseCase
-from src.application.use_cases.trading_cycle import TradingCycleUseCase
 
 
 def test_domain_layer_has_zero_external_dependencies():
@@ -173,62 +169,6 @@ def test_calendar_rules_august_2026():
     assert is_calendar_long_day(d_aug28)
 
 
-def test_expiry_day_is_not_an_alpha_signal_by_default():
-    strategy = LunaStrategy()
-    strategy.t2_engine.update = lambda bar: 0
-    bar = Bar(
-        symbol="VN30F2608",
-        timestamp=datetime(2026, 8, 20, 10, 0),
-        open=Decimal("1900"),
-        high=Decimal("1901"),
-        low=Decimal("1899"),
-        close=Decimal("1900"),
-        volume=100,
-    )
-
-    target, reason = strategy.on_bar(bar)
-
-    assert target == 0
-    assert reason == "neutral_flat"
-
-
-def test_fomo_gatekeeper_veto():
-    """Verify FOMO gatekeeper detects overbought pumps."""
-    gate = FomoGatekeeper()
-    # Feed 125 flat bars @ 100.0
-    for i in range(125):
-        dt = datetime(2026, 8, 3, 9, 30)
-        bar = Bar(symbol="VN30F", timestamp=dt, open=Decimal("100"), high=Decimal("100.5"), low=Decimal("99.5"), close=Decimal("100"), volume=10)
-        is_fomo = gate.update(bar)
-        assert not is_fomo
-
-    # Rapid pump +3.0 points (> 2% return) in 1 bar
-    pump_bar = Bar(symbol="VN30F", timestamp=datetime(2026, 8, 3, 14, 0), open=Decimal("100"), high=Decimal("103.5"), low=Decimal("100"), close=Decimal("103.0"), volume=50)
-    is_fomo = gate.update(pump_bar)
-    assert is_fomo
-
-
-def test_fomo_veto_cannot_fall_through_to_t2_long():
-    strategy = LunaStrategy()
-    blocked_day = date(2026, 8, 4)
-    strategy.blocked_execution_dates.add(blocked_day)
-    strategy.t2_engine.update = lambda bar: 1
-    bar = Bar(
-        symbol="VN30F2608",
-        timestamp=datetime(2026, 8, 4, 10, 0),
-        open=Decimal("1900"),
-        high=Decimal("1901"),
-        low=Decimal("1899"),
-        close=Decimal("1900"),
-        volume=100,
-    )
-
-    target, reason = strategy.on_bar(bar)
-
-    assert target == 0
-    assert reason == "calendar_long_blocked_by_fomo"
-
-
 def test_risk_monitor_use_case_blocks_when_call():
     """Mock broker returning a Margin Call and assert RiskMonitorUseCase rejects new trades."""
     class MockBroker(IBrokerGateway):
@@ -249,42 +189,3 @@ def test_risk_monitor_use_case_blocks_when_call():
     verdict = monitor.evaluate()
     assert not verdict.can_trade
     assert "exceeds safety threshold" in verdict.message or verdict.status != MarginCallStatus.NORMAL
-
-
-@pytest.mark.parametrize(
-    "state,fast,slow,macro,price,expected,reason",
-    [
-        (0, 0.009, 0.01, None, 101, 1, "t2_momentum_long_entry"),
-        (0, -0.011, -0.01, -0.01, 99, -1, "t2_momentum_short_entry"),
-        (0, 0.008, 0.01, 0.01, 101, 0, ""),
-        (0, -0.010, -0.01, -0.01, 99, 0, ""),
-        (0, -0.011, -0.01, None, 99, 0, ""),
-        (1, -0.1, -0.1, -0.1, 90, 0, "t2_long_momentum_exhausted"),
-        (-1, 0.1, 0.1, 0.1, 110, 0, "t2_short_momentum_exhausted"),
-        (1, 0, 0, 0, 100, 1, "t2_hold_long"),
-        (-1, 0, 0, 0, 100, -1, "t2_hold_short"),
-    ],
-)
-def test_t2_momentum_functional_transitions(state, fast, slow, macro, price, expected, reason):
-    from src.domain.strategy.t2_momentum import advance_t2_state
-    new_state, new_reason = advance_t2_state(
-        state, fast=fast, slow=slow, macro=macro, close=price, average=100
-    )
-    assert new_state == expected
-    assert new_reason == reason
-
-
-@pytest.mark.parametrize(
-    "distance,r2,r5,expected",
-    [
-        (4.77, 0.5, 0.011, False),
-        (4.77, 0, 0.011001, True),
-        (4.770001, 0.010, 0.5, False),
-        (4.770001, 0.010001, 0, True),
-        (4, 0, None, False),
-        (5, None, 0.5, False),
-    ],
-)
-def test_fomo_functional_boundaries(distance, r2, r5, expected):
-    from src.domain.strategy.fomo_gatekeeper import fomo_predicate
-    assert fomo_predicate(distance, r2, r5) is expected

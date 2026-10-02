@@ -34,7 +34,7 @@ from src.domain.entities.order import Side as DomainSide
 from src.domain.entities.position import Position as DomainPosition
 from src.domain.strategy.calendar_rules import VN_CLOSED_DAYS
 from src.domain.strategy.hypothesis import FalsificationCriteria
-from src.domain.strategy.luna_strategy import LunaParameters, LunaStrategy
+
 
 
 def _json_value(value: Any) -> Any:
@@ -323,19 +323,17 @@ class PlutusResearchRunner:
         self,
         start: date,
         end: date,
-        params: LunaParameters | None = None,
         *,
         sample: str,
-        target_by_start: Mapping[datetime, int] | None = None,
-        signal_name: str = "luna",
-        warmup_start: date | None = None,
+        target_by_start: Mapping[datetime, int],
+        signal_name: str = "calibrum",
     ) -> ResearchRunResult:
         rows = self.source.replay_bars(start, end)
         if not rows:
             raise ValueError(f"No futures bars in {start.isoformat()}..{end.isoformat()}")
 
         session = self._session(start, end)
-        strategy = None if target_by_start is not None else LunaStrategy(params)
+
         pending_target = 0
         pending_reason = "initial_flat"
         previous_contract: str | None = None
@@ -353,57 +351,36 @@ class PlutusResearchRunner:
             "cross_side_skew_seconds": [],
         }
 
-        if warmup_start is not None:
-            if strategy is None:
-                raise ValueError("warmup_start is only valid for strategy-generated targets")
-            if warmup_start >= start:
-                raise ValueError("warmup_start must be before the replay start date")
-            for row in self.source.replay_bars(warmup_start, start - timedelta(days=1)):
-                if previous_contract is not None and row.contract != previous_contract:
-                    strategy.reset_market_history()
-                previous_contract = row.contract
-                target, pending_reason = strategy.on_bar(row.bar)
-                pending_target = target * self.target_multiplier
 
         for row in rows:
             if session.now() < row.start:
                 for event in session.advance_to(row.start):
                     event_counts[event.kind.value] += 1
 
-            if (
-                strategy is not None
-                and previous_contract is not None
-                and row.contract != previous_contract
-            ):
-                strategy.reset_market_history()
             previous_contract = row.contract
 
-            if target_by_start is not None:
-                requested = target_by_start.get(row.start)
-                if requested is not None:
-                    if isinstance(requested, bool) or not isinstance(requested, int):
-                        raise TypeError(
-                            f"Target at {row.start.isoformat()} must be an int, "
-                            f"got {requested!r}"
-                        )
-                    target_changed = requested != pending_target
-                    pending_target = requested
-                    pending_reason = f"{signal_name}_precomputed_target"
-                    if target_changed and self.execution_model == "book_walk":
-                        # A stale/partial LIMIT can survive into the next bar.
-                        # The live EC2 loop replaces intent; it does not stack
-                        # another full order on top of an old one.
-                        for live in tuple(
-                            record
-                            for record in session.orders()
-                            if record.is_live and record.order.ticker == row.contract
-                        ):
-                            cancelled = session.cancel(live.order_id)
-                            if isinstance(cancelled, Rejected):
-                                cancellation_rejections.append(
-                                    f"{row.start.isoformat()} {row.contract} "
-                                    f"{cancelled.rule.value}: {cancelled.detail}"
-                                )
+            requested = target_by_start.get(row.start)
+            if requested is not None:
+                if isinstance(requested, bool) or not isinstance(requested, int):
+                    raise TypeError(
+                        f"Target at {row.start.isoformat()} must be an int, "
+                        f"got {requested!r}"
+                    )
+                target_changed = requested != pending_target
+                pending_target = requested
+                pending_reason = f"{signal_name}_precomputed_target"
+                if target_changed and self.execution_model == "book_walk":
+                    for live in tuple(
+                        record
+                        for record in session.orders()
+                        if record.is_live and record.order.ticker == row.contract
+                    ):
+                        cancelled = session.cancel(live.order_id)
+                        if isinstance(cancelled, Rejected):
+                            cancellation_rejections.append(
+                                f"{row.start.isoformat()} {row.contract} "
+                                f"{cancelled.rule.value}: {cancelled.detail}"
+                            )
 
             position = session.positions().get(row.contract)
             current = 0 if position is None else position.net_quantity
@@ -472,9 +449,7 @@ class PlutusResearchRunner:
             for event in session.advance_to(row.end):
                 event_counts[event.kind.value] += 1
 
-            if strategy is not None:
-                target, pending_reason = strategy.on_bar(row.bar)
-                pending_target = target * self.target_multiplier
+
             margin = session.margin()
             if margin.utilisation is not None:
                 peak_utilisation = max(peak_utilisation, margin.utilisation)
@@ -619,21 +594,13 @@ class PlutusResearchRunner:
                     f"{self.source.bar_minutes}-minute OHLCV bars are left-labelled and "
                     "served to Plutus only after completion."
                 ),
-                (
-                    "Signals execute on the next available bar; no same-close fills."
-                    if target_by_start is None
-                    else "Pre-shifted causal targets are submitted at their stamped execution interval."
-                ),
+                "Pre-shifted causal targets are submitted at their stamped execution interval.",
                 (
                     f"Published bands used on {self.source.band_source_counts['published']} futures bars; "
                     f"{self.source.band_source_counts['reconstructed']} bars were reconstructed from the previous observed close."
                 ),
                 "VSDC settlement notices are absent; exchange closures are an explicitly named proxy.",
-                (
-                    "Indicators reset at contract roll because no overlap exists for back-adjustment."
-                    if target_by_start is None
-                    else "The external signal generator owns indicator continuity across contract rolls."
-                ),
+                "The external signal generator owns indicator continuity across contract rolls.",
                 "Broker commission is zero; Plutus still applies dated statutory HNX/VSDC/PIT charges.",
                 (
                     "Depth-backed execution reconstructs each of three levels independently as-of the order timestamp; no level 4+ is invented."
