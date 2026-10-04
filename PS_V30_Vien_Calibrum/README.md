@@ -33,11 +33,11 @@ Notebook đã execute 8/8 code cells trong Docker, không có error:
 
 ## Quy trình xác minh
 
-Chạy trong Docker Finpros Native SDK:
+Chạy trong Docker Native SDK:
 
 ```bash
 docker exec evangelion-workspace-1 bash -lc \
-  'cd /workspaces/Finpros && python alphas/PS_V30_Vien_Calibrum/verify_calibrum.py'
+  'python alphas/PS_V30_Vien_Calibrum/verify_calibrum.py'
 ```
 
 Verifier yêu cầu exact output parity với Master gốc, native backtest fee 0.4,

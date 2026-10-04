@@ -129,7 +129,7 @@ def main() -> None:
     print(f"Shinji basis price:  {args.shinji_basis_price}")
     print(f"Shinji roll guard:   {'enabled' if args.shinji_roll_guard else 'disabled'}")
     print(f"Ridge roll guard:    {'enabled' if args.ridge_roll_guard else 'disabled'}")
-    print("Parity caveat:       no — DB series is not verified Finpros adjusted data")
+    print("Parity caveat:       no — DB series is not verified platform adjusted data")
     print(f"Report: {report_path}")
 
 

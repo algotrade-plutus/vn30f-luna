@@ -31,7 +31,7 @@ The ensemble operation is accurately described as
 adjusted-futures/spot spread used by the Master; it was not silently changed to
 raw futures basis.
 
-## Finpros native verification
+## Native SDK verification
 
 Executed in `evangelion-workspace-1` using the native SDK and `fee=0.4`:
 

@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Native parity and Finpros gate verification for Calibrum."""
+"""Native parity and gate verification for Calibrum."""
 from __future__ import annotations
 
 import hashlib
 import json
+import os
 from pathlib import Path
 import sys
 import time
@@ -13,7 +14,18 @@ import numpy as np
 import pandas as pd
 
 
-ROOT = Path("/workspaces/Finpros")
+ROOT = Path(os.environ.get("WORKSPACE_ROOT", ""))
+if not (ROOT / "alphas" / "PS_V30_Vien_Calibrum").exists():
+    if (Path.cwd() / "alphas" / "PS_V30_Vien_Calibrum").exists():
+        ROOT = Path.cwd()
+    elif Path("/workspaces").exists():
+        for p in Path("/workspaces").iterdir():
+            if (p / "alphas" / "PS_V30_Vien_Calibrum").exists():
+                ROOT = p
+                break
+if not ROOT.exists():
+    ROOT = Path.cwd()
+
 HERE = ROOT / "alphas" / "PS_V30_Vien_Calibrum"
 REFERENCE_DIR = ROOT / "alphas" / "PS_V30_Vien_Master_Ensemble"
 sys.path[:0] = [str(HERE), str(ROOT), "/home/jovyan/shared-storage/libs"]

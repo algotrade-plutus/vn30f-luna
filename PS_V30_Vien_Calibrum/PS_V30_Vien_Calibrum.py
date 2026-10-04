@@ -7,7 +7,7 @@ their net vote:
 - Shinji: adjusted-futures/spot spread mean reversion;
 - Calendar: weekday, turn-of-month, pre-holiday and expiry effects.
 
-The module is deliberately self-contained for Finpros submission. It does not
+The module is deliberately self-contained for submission. It does not
 import another Alpha, fit a model, read a sibling config, or execute test code at
 import time.
 """

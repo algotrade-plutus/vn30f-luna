@@ -1,8 +1,8 @@
 """Causal DB/Plutus bridge for the frozen Calibrum signal package.
 
-The copied Calibrum source was written for the Finpros ``AlphaBase`` runtime.
+The copied Calibrum source was written for the ``AlphaBase`` runtime.
 This adapter calls only its frozen sleeve functions; it neither imports nor
-calls Finpros.  Its output is deliberately a *diagnostic* while the research
+calls the vendor platform.  Its output is deliberately a *diagnostic* while the research
 database exposes a raw front-month contract rather than Calibrum's documented
 adjusted continuous future.
 """
@@ -64,7 +64,7 @@ def _load_json(path: Path) -> dict[str, Any]:
 def _load_frozen_module(package_dir: Path) -> types.ModuleType:
     """Import the archive's functions with a tiny local AlphaBase shim.
 
-    Calibrum's module imports ``AlphaBase`` only to declare its Finpros-facing
+    Calibrum's module imports ``AlphaBase`` only to declare its vendor-facing
     class.  The DB bridge never instantiates that class, but providing this
     narrow shim lets us execute the original frozen sleeve functions unchanged.
     """
@@ -365,7 +365,7 @@ def generate_calibrum_targets(
             "At each observed contract transition, the first new-contract open is "
             "additively shifted to the prior raw-contract close. Ridge H2 and Calendar "
             "continue to receive raw DB bars. This is a project-defined sensitivity "
-            "series, not a verified Finpros adjusted series."
+            "series, not a verified platform adjusted series."
             if shinji_basis_price == "roll_adjusted"
             else None
         ),

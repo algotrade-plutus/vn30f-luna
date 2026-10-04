@@ -99,7 +99,7 @@ def run(action: str) -> None:
         print("Dry-run hoàn tất; không thay đổi trạng thái remote.")
         return
     if not config.get("password") or config["password"] == "YOUR_PASSWORD_HERE":
-        raise ValueError("Điền password Finpros thật trước khi submit/update")
+        raise ValueError("Điền password thật trước khi submit/update")
     response = alpha.submit_alpha(files) if action == "submit" else alpha.update_alpha(files)
     print(json.dumps(response, indent=2, ensure_ascii=False, default=str))
 
