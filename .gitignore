@@ -30,7 +30,7 @@ algotrade/runtime/
 
 
 # The Plutus engine is recorded as a pinned Git submodule. Its source is
-# tracked in its own repository, rather than vendored into Luna.
+# tracked in its own repository, rather than vendored here.
 
 # Local editor artifacts
 *.log

@@ -3,9 +3,9 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "luna-vn30f"
+name = "calibrum-vn30f"
 version = "0.1.0"
-description = "Luna VN30F quantitative research and Plutus exchange backtests"
+description = "Calibrum VN30F quantitative research and Plutus exchange backtests"
 requires-python = ">=3.12,<3.14"
 dependencies = [
     "algotrade-plutus",
@@ -15,6 +15,7 @@ dependencies = [
     "psycopg2-binary>=2.9",
     "pyarrow>=15",
     "pytz>=2024.1",
+    "torch>=2.0",
 ]
 
 [tool.uv.sources]

@@ -1,4 +1,4 @@
-"""A causal Luna replay against the real Plutus exchange session.
+"""A causal Calibrum replay against the real Plutus exchange session.
 
 The strategy observes a completed, left-labelled 30-minute bar.  Its target is
 submitted at the start of the next available bar and is evaluated by Plutus

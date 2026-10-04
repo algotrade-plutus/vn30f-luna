@@ -36,7 +36,7 @@ class PostgresConnectionPool:
                 user=self.config.user,
                 password=self.config.password,
                 connect_timeout=10,
-                application_name="alpha_luna_research_read_only",
+                application_name="calibrum_research_read_only",
                 options="-c default_transaction_read_only=on -c statement_timeout=300000",
             )
             logger.info("Postgres connection pool established to %s:%s", self.config.host, self.config.port)
