@@ -1,0 +1,461 @@
+{
+  "files": [
+    {
+      "classification": "LOCAL_EXACT",
+      "context": "dashboard",
+      "git_exact_commits": [
+        "848bd19a787039bc4230925a36503b534cfd7783",
+        "f47182a2111337603d906baf5cad4831b0e9ad61",
+        "850037f81858ca9f4d13d5b3854904fe067edafd",
+        "8f27daf3d34e098a721bd9f207d7687d1cfaf8a2",
+        "984d0f72c1bce7a0683d8138a4a5ce945a09fede",
+        "e40bc170cf52248f042609e1149799bc2a9650b8",
+        "2b38a356e905398670da4405b83a06e823746c5d",
+        "f5b37ccf87b800087ff724f8843a7589c490ae43"
+      ],
+      "local_path": "/Users/kotori/Documents/Trading/luna-vn30f/papertrade/dashboard/static/index.html",
+      "local_sha256": "bb66b1c3efe03bc7412a9b8203e27d7fa6d9ee5b516268aadd7ff77fd328f99e",
+      "origin": "host_override",
+      "origin_source": "/var/lib/algotrade/dashboard-static/index.html",
+      "path": "dashboard/static/index.html",
+      "production_sha256": "bb66b1c3efe03bc7412a9b8203e27d7fa6d9ee5b516268aadd7ff77fd328f99e",
+      "snapshot_path": "algotrade/runtime-baseline/production-source/dashboard-app/dashboard/static/index.html"
+    },
+    {
+      "classification": "LOCAL_CHANGED_FROM_TRACKED_BASELINE",
+      "context": "trading",
+      "git_exact_commits": [
+        "8f27daf3d34e098a721bd9f207d7687d1cfaf8a2",
+        "984d0f72c1bce7a0683d8138a4a5ce945a09fede",
+        "e40bc170cf52248f042609e1149799bc2a9650b8",
+        "2b38a356e905398670da4405b83a06e823746c5d",
+        "f5b37ccf87b800087ff724f8843a7589c490ae43"
+      ],
+      "local_path": "/Users/kotori/Documents/Trading/luna-vn30f/papertrade/algotrade_adapter/__init__.py",
+      "local_sha256": "6ac0139d253b48789afb1452143a63c484171e0d521ef93253ba525e4df2e1e3",
+      "origin": "image",
+      "origin_source": "943193395259.dkr.ecr.ap-southeast-1.amazonaws.com/algotrade-paper@sha256:d79e6a337705eb05c2ed1c20384cfeef12b9548b1ff94dd191b45c3e3dfbadb3",
+      "path": "algotrade_adapter/__init__.py",
+      "production_sha256": "cce02992207db04e6598387216fd9d29010da00980c0e0fb68c4b7a289bb2e22",
+      "snapshot_path": "algotrade/runtime-baseline/production-source/app/algotrade_adapter/__init__.py"
+    },
+    {
+      "classification": "LOCAL_EXACT",
+      "context": "trading",
+      "git_exact_commits": [
+        "848bd19a787039bc4230925a36503b534cfd7783",
+        "f47182a2111337603d906baf5cad4831b0e9ad61",
+        "850037f81858ca9f4d13d5b3854904fe067edafd",
+        "8f27daf3d34e098a721bd9f207d7687d1cfaf8a2",
+        "984d0f72c1bce7a0683d8138a4a5ce945a09fede",
+        "e40bc170cf52248f042609e1149799bc2a9650b8",
+        "2b38a356e905398670da4405b83a06e823746c5d",
+        "f5b37ccf87b800087ff724f8843a7589c490ae43"
+      ],
+      "local_path": "/Users/kotori/Documents/Trading/luna-vn30f/papertrade/algotrade_adapter/account_snapshot.py",
+      "local_sha256": "f8eb14fbcd2cf3dce97a122afd215d5b6340b852272c5fb9b53137343a309fd9",
+      "origin": "image",
+      "origin_source": "943193395259.dkr.ecr.ap-southeast-1.amazonaws.com/algotrade-paper@sha256:d79e6a337705eb05c2ed1c20384cfeef12b9548b1ff94dd191b45c3e3dfbadb3",
+      "path": "algotrade_adapter/account_snapshot.py",
+      "production_sha256": "f8eb14fbcd2cf3dce97a122afd215d5b6340b852272c5fb9b53137343a309fd9",
+      "snapshot_path": "algotrade/runtime-baseline/production-source/app/algotrade_adapter/account_snapshot.py"
+    },
+    {
+      "classification": "LOCAL_EXACT",
+      "context": "trading",
+      "git_exact_commits": [
+        "848bd19a787039bc4230925a36503b534cfd7783",
+        "f47182a2111337603d906baf5cad4831b0e9ad61",
+        "850037f81858ca9f4d13d5b3854904fe067edafd",
+        "8f27daf3d34e098a721bd9f207d7687d1cfaf8a2",
+        "984d0f72c1bce7a0683d8138a4a5ce945a09fede",
+        "e40bc170cf52248f042609e1149799bc2a9650b8",
+        "2b38a356e905398670da4405b83a06e823746c5d",
+        "f5b37ccf87b800087ff724f8843a7589c490ae43"
+      ],
+      "local_path": "/Users/kotori/Documents/Trading/luna-vn30f/papertrade/algotrade_adapter/client.py",
+      "local_sha256": "0c1b581d710e4bbad90a679ce8aac99a9c3a6985761c6dcdcaf235d68b78b4f0",
+      "origin": "image",
+      "origin_source": "943193395259.dkr.ecr.ap-southeast-1.amazonaws.com/algotrade-paper@sha256:d79e6a337705eb05c2ed1c20384cfeef12b9548b1ff94dd191b45c3e3dfbadb3",
+      "path": "algotrade_adapter/client.py",
+      "production_sha256": "0c1b581d710e4bbad90a679ce8aac99a9c3a6985761c6dcdcaf235d68b78b4f0",
+      "snapshot_path": "algotrade/runtime-baseline/production-source/app/algotrade_adapter/client.py"
+    },
+    {
+      "classification": "LOCAL_EXACT",
+      "context": "trading",
+      "git_exact_commits": [
+        "848bd19a787039bc4230925a36503b534cfd7783",
+        "f47182a2111337603d906baf5cad4831b0e9ad61",
+        "850037f81858ca9f4d13d5b3854904fe067edafd",
+        "8f27daf3d34e098a721bd9f207d7687d1cfaf8a2",
+        "984d0f72c1bce7a0683d8138a4a5ce945a09fede",
+        "e40bc170cf52248f042609e1149799bc2a9650b8",
+        "2b38a356e905398670da4405b83a06e823746c5d",
+        "f5b37ccf87b800087ff724f8843a7589c490ae43"
+      ],
+      "local_path": "/Users/kotori/Documents/Trading/luna-vn30f/papertrade/algotrade_adapter/market_data.py",
+      "local_sha256": "c569133e6afcd639758a1a3643f0a5b3af14824054fd92d70e6b57c953667990",
+      "origin": "image",
+      "origin_source": "943193395259.dkr.ecr.ap-southeast-1.amazonaws.com/algotrade-paper@sha256:d79e6a337705eb05c2ed1c20384cfeef12b9548b1ff94dd191b45c3e3dfbadb3",
+      "path": "algotrade_adapter/market_data.py",
+      "production_sha256": "c569133e6afcd639758a1a3643f0a5b3af14824054fd92d70e6b57c953667990",
+      "snapshot_path": "algotrade/runtime-baseline/production-source/app/algotrade_adapter/market_data.py"
+    },
+    {
+      "classification": "LOCAL_EXACT",
+      "context": "trading",
+      "git_exact_commits": [],
+      "local_path": "/Users/kotori/Documents/Trading/luna-vn30f/papertrade/algotrade_adapter/safe_alpha.py",
+      "local_sha256": "264defcad6ff15fc25581a56750daf2724d7de7cdba8aee639f262b432cf1527",
+      "origin": "host_override",
+      "origin_source": "/var/lib/algotrade/safe_alpha.py",
+      "path": "algotrade_adapter/safe_alpha.py",
+      "production_sha256": "264defcad6ff15fc25581a56750daf2724d7de7cdba8aee639f262b432cf1527",
+      "snapshot_path": "algotrade/runtime-baseline/production-source/app/algotrade_adapter/safe_alpha.py"
+    },
+    {
+      "classification": "LOCAL_EXACT",
+      "context": "trading",
+      "git_exact_commits": [
+        "848bd19a787039bc4230925a36503b534cfd7783",
+        "f47182a2111337603d906baf5cad4831b0e9ad61",
+        "850037f81858ca9f4d13d5b3854904fe067edafd",
+        "8f27daf3d34e098a721bd9f207d7687d1cfaf8a2",
+        "984d0f72c1bce7a0683d8138a4a5ce945a09fede",
+        "e40bc170cf52248f042609e1149799bc2a9650b8",
+        "2b38a356e905398670da4405b83a06e823746c5d",
+        "f5b37ccf87b800087ff724f8843a7589c490ae43"
+      ],
+      "local_path": "/Users/kotori/Documents/Trading/luna-vn30f/papertrade/alphas/calendar/__init__.py",
+      "local_sha256": "44c06819cbf4a4da97c86d9f97b0922761bfd27f4973bb6709949da6eef3c460",
+      "origin": "image",
+      "origin_source": "943193395259.dkr.ecr.ap-southeast-1.amazonaws.com/algotrade-paper@sha256:d79e6a337705eb05c2ed1c20384cfeef12b9548b1ff94dd191b45c3e3dfbadb3",
+      "path": "alphas/calendar/__init__.py",
+      "production_sha256": "44c06819cbf4a4da97c86d9f97b0922761bfd27f4973bb6709949da6eef3c460",
+      "snapshot_path": "algotrade/runtime-baseline/production-source/app/alphas/calendar/__init__.py"
+    },
+    {
+      "classification": "RECOVERED_PRODUCTION_DIFFERS_FROM_LOCAL",
+      "context": "trading",
+      "git_exact_commits": [],
+      "local_path": "/Users/kotori/Documents/Trading/luna-vn30f/papertrade/alphas/calendar/schedule.py",
+      "local_sha256": "32940d4333beb8119e01e004dbf9935a7a1411153fa62648fd930c5345added6",
+      "origin": "image",
+      "origin_source": "943193395259.dkr.ecr.ap-southeast-1.amazonaws.com/algotrade-paper@sha256:d79e6a337705eb05c2ed1c20384cfeef12b9548b1ff94dd191b45c3e3dfbadb3",
+      "path": "alphas/calendar/schedule.py",
+      "production_sha256": "a6037a6d46c7cfa013bef9d948441edfd2d6694fd8f276bc6778f8bbeb3f0576",
+      "snapshot_path": "algotrade/runtime-baseline/production-source/app/alphas/calendar/schedule.py"
+    },
+    {
+      "classification": "LOCAL_CHANGED_FROM_TRACKED_BASELINE",
+      "context": "trading",
+      "git_exact_commits": [
+        "848bd19a787039bc4230925a36503b534cfd7783",
+        "f47182a2111337603d906baf5cad4831b0e9ad61",
+        "850037f81858ca9f4d13d5b3854904fe067edafd",
+        "8f27daf3d34e098a721bd9f207d7687d1cfaf8a2",
+        "984d0f72c1bce7a0683d8138a4a5ce945a09fede",
+        "e40bc170cf52248f042609e1149799bc2a9650b8",
+        "2b38a356e905398670da4405b83a06e823746c5d",
+        "f5b37ccf87b800087ff724f8843a7589c490ae43"
+      ],
+      "local_path": "/Users/kotori/Documents/Trading/luna-vn30f/papertrade/alphas/calendar/service.py",
+      "local_sha256": "fb4774ab2fa204a7c4a1ed000eb22be3fc58c17bf854e23c735a49edae4ace94",
+      "origin": "image",
+      "origin_source": "943193395259.dkr.ecr.ap-southeast-1.amazonaws.com/algotrade-paper@sha256:d79e6a337705eb05c2ed1c20384cfeef12b9548b1ff94dd191b45c3e3dfbadb3",
+      "path": "alphas/calendar/service.py",
+      "production_sha256": "bef9e62dd64c9bc3536950f2f5fcf22c71f8d0288fedf25a09d9d790fdb44590",
+      "snapshot_path": "algotrade/runtime-baseline/production-source/app/alphas/calendar/service.py"
+    },
+    {
+      "classification": "RECOVERED_PRODUCTION_DIFFERS_FROM_LOCAL",
+      "context": "trading",
+      "git_exact_commits": [],
+      "local_path": "/Users/kotori/Documents/Trading/luna-vn30f/papertrade/alphas/master_unified/__init__.py",
+      "local_sha256": "421d2634636581ce912c41a2dec61bd60c9c6c8562f067b93d1deaaca90dfaf0",
+      "origin": "image",
+      "origin_source": "943193395259.dkr.ecr.ap-southeast-1.amazonaws.com/algotrade-paper@sha256:d79e6a337705eb05c2ed1c20384cfeef12b9548b1ff94dd191b45c3e3dfbadb3",
+      "path": "alphas/master_unified/__init__.py",
+      "production_sha256": "9d07f76b8451f66f98c2029e0ec0fbc98c67904241603481cb94223652075116",
+      "snapshot_path": "algotrade/runtime-baseline/production-source/app/alphas/master_unified/__init__.py"
+    },
+    {
+      "classification": "RECOVERED_PRODUCTION_DIFFERS_FROM_LOCAL",
+      "context": "trading",
+      "git_exact_commits": [],
+      "local_path": "/Users/kotori/Documents/Trading/luna-vn30f/papertrade/alphas/master_unified/genesis_engine.py",
+      "local_sha256": "dea918712da31e734ac282e85ad728c62b51fb04921cf56c7f7f7737d5aae056",
+      "origin": "host_override",
+      "origin_source": "/var/lib/algotrade/genesis_engine.py",
+      "path": "alphas/master_unified/genesis_engine.py",
+      "production_sha256": "968ea5be7a07de4954dcdc4643efeeac272e0dfc64b32b57d27c6ec8b2c3e36a",
+      "snapshot_path": "algotrade/runtime-baseline/production-source/app/alphas/master_unified/genesis_engine.py"
+    },
+    {
+      "classification": "LOCAL_CHANGED_FROM_TRACKED_BASELINE",
+      "context": "trading",
+      "git_exact_commits": [
+        "8f27daf3d34e098a721bd9f207d7687d1cfaf8a2",
+        "984d0f72c1bce7a0683d8138a4a5ce945a09fede",
+        "e40bc170cf52248f042609e1149799bc2a9650b8",
+        "2b38a356e905398670da4405b83a06e823746c5d",
+        "f5b37ccf87b800087ff724f8843a7589c490ae43"
+      ],
+      "local_path": "/Users/kotori/Documents/Trading/luna-vn30f/papertrade/alphas/master_unified/hybrid_engine.py",
+      "local_sha256": "33f2551dcb14d1b8b5c9d99bcaf8970ffc1a351f29affaeac8c829d98be71f21",
+      "origin": "image",
+      "origin_source": "943193395259.dkr.ecr.ap-southeast-1.amazonaws.com/algotrade-paper@sha256:d79e6a337705eb05c2ed1c20384cfeef12b9548b1ff94dd191b45c3e3dfbadb3",
+      "path": "alphas/master_unified/hybrid_engine.py",
+      "production_sha256": "ba2a53b88019cd4fcb6e0e8c36e56822ac44941f25cc8d452ee93329ad186596",
+      "snapshot_path": "algotrade/runtime-baseline/production-source/app/alphas/master_unified/hybrid_engine.py"
+    },
+    {
+      "classification": "RECOVERED_PRODUCTION_DIFFERS_FROM_LOCAL",
+      "context": "trading",
+      "git_exact_commits": [],
+      "local_path": "/Users/kotori/Documents/Trading/luna-vn30f/papertrade/alphas/master_unified/schedule.py",
+      "local_sha256": "f259e7a3be20be5e90b6ac4e94b37d43a32b7d47807140008004e5c53569bc41",
+      "origin": "host_override",
+      "origin_source": "/var/lib/algotrade/schedule.py",
+      "path": "alphas/master_unified/schedule.py",
+      "production_sha256": "b37519d8a4a3d28cade9b20f057b0b951950251860a316af57ba7d2e605ce97f",
+      "snapshot_path": "algotrade/runtime-baseline/production-source/app/alphas/master_unified/schedule.py"
+    },
+    {
+      "classification": "RECOVERED_PRODUCTION_DIFFERS_FROM_LOCAL",
+      "context": "trading",
+      "git_exact_commits": [],
+      "local_path": "/Users/kotori/Documents/Trading/luna-vn30f/papertrade/alphas/master_unified/service.py",
+      "local_sha256": "4fa5253632ba5c5dfe134dc851df3f0bacba5e51b02d5fb048f96b284804c888",
+      "origin": "host_override",
+      "origin_source": "/var/lib/algotrade/service.py",
+      "path": "alphas/master_unified/service.py",
+      "production_sha256": "9d319046b4e26323e502693ab10a970e58cbcbb5445ec008c6dc13d84ebfee52",
+      "snapshot_path": "algotrade/runtime-baseline/production-source/app/alphas/master_unified/service.py"
+    },
+    {
+      "classification": "LOCAL_EXACT",
+      "context": "trading",
+      "git_exact_commits": [
+        "848bd19a787039bc4230925a36503b534cfd7783",
+        "f47182a2111337603d906baf5cad4831b0e9ad61",
+        "850037f81858ca9f4d13d5b3854904fe067edafd",
+        "8f27daf3d34e098a721bd9f207d7687d1cfaf8a2",
+        "984d0f72c1bce7a0683d8138a4a5ce945a09fede",
+        "e40bc170cf52248f042609e1149799bc2a9650b8",
+        "2b38a356e905398670da4405b83a06e823746c5d",
+        "f5b37ccf87b800087ff724f8843a7589c490ae43"
+      ],
+      "local_path": "/Users/kotori/Documents/Trading/luna-vn30f/papertrade/dashboard/__init__.py",
+      "local_sha256": "4a24f8a6f079c1018b64970c0300e7f168b9db18f2ef64351cbc5b3a22baa70c",
+      "origin": "image",
+      "origin_source": "943193395259.dkr.ecr.ap-southeast-1.amazonaws.com/algotrade-paper@sha256:d79e6a337705eb05c2ed1c20384cfeef12b9548b1ff94dd191b45c3e3dfbadb3",
+      "path": "dashboard/__init__.py",
+      "production_sha256": "4a24f8a6f079c1018b64970c0300e7f168b9db18f2ef64351cbc5b3a22baa70c",
+      "snapshot_path": "algotrade/runtime-baseline/production-source/app/dashboard/__init__.py"
+    },
+    {
+      "classification": "LOCAL_EXACT",
+      "context": "trading",
+      "git_exact_commits": [
+        "848bd19a787039bc4230925a36503b534cfd7783",
+        "f47182a2111337603d906baf5cad4831b0e9ad61",
+        "850037f81858ca9f4d13d5b3854904fe067edafd",
+        "8f27daf3d34e098a721bd9f207d7687d1cfaf8a2",
+        "984d0f72c1bce7a0683d8138a4a5ce945a09fede",
+        "e40bc170cf52248f042609e1149799bc2a9650b8",
+        "2b38a356e905398670da4405b83a06e823746c5d",
+        "f5b37ccf87b800087ff724f8843a7589c490ae43"
+      ],
+      "local_path": "/Users/kotori/Documents/Trading/luna-vn30f/papertrade/dashboard/healthcheck.py",
+      "local_sha256": "04c927315d7ba89dc1b6246a30090ae3bcfe8ce57b677c4f0b1b49c34756fd16",
+      "origin": "image",
+      "origin_source": "943193395259.dkr.ecr.ap-southeast-1.amazonaws.com/algotrade-paper@sha256:d79e6a337705eb05c2ed1c20384cfeef12b9548b1ff94dd191b45c3e3dfbadb3",
+      "path": "dashboard/healthcheck.py",
+      "production_sha256": "04c927315d7ba89dc1b6246a30090ae3bcfe8ce57b677c4f0b1b49c34756fd16",
+      "snapshot_path": "algotrade/runtime-baseline/production-source/app/dashboard/healthcheck.py"
+    },
+    {
+      "classification": "LOCAL_EXACT",
+      "context": "trading",
+      "git_exact_commits": [
+        "848bd19a787039bc4230925a36503b534cfd7783",
+        "f47182a2111337603d906baf5cad4831b0e9ad61",
+        "850037f81858ca9f4d13d5b3854904fe067edafd",
+        "8f27daf3d34e098a721bd9f207d7687d1cfaf8a2",
+        "984d0f72c1bce7a0683d8138a4a5ce945a09fede",
+        "e40bc170cf52248f042609e1149799bc2a9650b8",
+        "2b38a356e905398670da4405b83a06e823746c5d",
+        "f5b37ccf87b800087ff724f8843a7589c490ae43"
+      ],
+      "local_path": "/Users/kotori/Documents/Trading/luna-vn30f/papertrade/dashboard/server.py",
+      "local_sha256": "86f0ee176b54eb487fd9a01e9047b36e5e02d325e5c52e7a0bdfb46537732613",
+      "origin": "image",
+      "origin_source": "943193395259.dkr.ecr.ap-southeast-1.amazonaws.com/algotrade-paper@sha256:d79e6a337705eb05c2ed1c20384cfeef12b9548b1ff94dd191b45c3e3dfbadb3",
+      "path": "dashboard/server.py",
+      "production_sha256": "86f0ee176b54eb487fd9a01e9047b36e5e02d325e5c52e7a0bdfb46537732613",
+      "snapshot_path": "algotrade/runtime-baseline/production-source/app/dashboard/server.py"
+    },
+    {
+      "classification": "RECOVERED_PRODUCTION_DIFFERS_FROM_LOCAL",
+      "context": "trading",
+      "git_exact_commits": [],
+      "local_path": "/Users/kotori/Documents/Trading/luna-vn30f/papertrade/dashboard/static/index.html",
+      "local_sha256": "bb66b1c3efe03bc7412a9b8203e27d7fa6d9ee5b516268aadd7ff77fd328f99e",
+      "origin": "image",
+      "origin_source": "943193395259.dkr.ecr.ap-southeast-1.amazonaws.com/algotrade-paper@sha256:d79e6a337705eb05c2ed1c20384cfeef12b9548b1ff94dd191b45c3e3dfbadb3",
+      "path": "dashboard/static/index.html",
+      "production_sha256": "e80f5d63984f9eca25caa574461571b9b30021dafde480f0f73a7063d33dd58d",
+      "snapshot_path": "algotrade/runtime-baseline/production-source/app/dashboard/static/index.html"
+    },
+    {
+      "classification": "LOCAL_EXACT",
+      "context": "trading",
+      "git_exact_commits": [
+        "848bd19a787039bc4230925a36503b534cfd7783",
+        "f47182a2111337603d906baf5cad4831b0e9ad61",
+        "850037f81858ca9f4d13d5b3854904fe067edafd",
+        "8f27daf3d34e098a721bd9f207d7687d1cfaf8a2",
+        "984d0f72c1bce7a0683d8138a4a5ce945a09fede",
+        "e40bc170cf52248f042609e1149799bc2a9650b8",
+        "2b38a356e905398670da4405b83a06e823746c5d",
+        "f5b37ccf87b800087ff724f8843a7589c490ae43"
+      ],
+      "local_path": "/Users/kotori/Documents/Trading/luna-vn30f/papertrade/scripts/container_entrypoint.py",
+      "local_sha256": "f03067c005e223e861791ba7938307f8d9d5c1bbc45c62e05628ca9c9bd10991",
+      "origin": "image",
+      "origin_source": "943193395259.dkr.ecr.ap-southeast-1.amazonaws.com/algotrade-paper@sha256:d79e6a337705eb05c2ed1c20384cfeef12b9548b1ff94dd191b45c3e3dfbadb3",
+      "path": "scripts/container_entrypoint.py",
+      "production_sha256": "f03067c005e223e861791ba7938307f8d9d5c1bbc45c62e05628ca9c9bd10991",
+      "snapshot_path": "algotrade/runtime-baseline/production-source/app/scripts/container_entrypoint.py"
+    },
+    {
+      "classification": "LOCAL_EXACT",
+      "context": "trading",
+      "git_exact_commits": [
+        "848bd19a787039bc4230925a36503b534cfd7783",
+        "f47182a2111337603d906baf5cad4831b0e9ad61",
+        "850037f81858ca9f4d13d5b3854904fe067edafd",
+        "8f27daf3d34e098a721bd9f207d7687d1cfaf8a2",
+        "984d0f72c1bce7a0683d8138a4a5ce945a09fede",
+        "e40bc170cf52248f042609e1149799bc2a9650b8",
+        "2b38a356e905398670da4405b83a06e823746c5d",
+        "f5b37ccf87b800087ff724f8843a7589c490ae43"
+      ],
+      "local_path": "/Users/kotori/Documents/Trading/luna-vn30f/papertrade/scripts/container_healthcheck.py",
+      "local_sha256": "a8c343a60342bf29296dc8fb250645ab21c65a2dfcf6eab056470c3c2754e6eb",
+      "origin": "image",
+      "origin_source": "943193395259.dkr.ecr.ap-southeast-1.amazonaws.com/algotrade-paper@sha256:d79e6a337705eb05c2ed1c20384cfeef12b9548b1ff94dd191b45c3e3dfbadb3",
+      "path": "scripts/container_healthcheck.py",
+      "production_sha256": "a8c343a60342bf29296dc8fb250645ab21c65a2dfcf6eab056470c3c2754e6eb",
+      "snapshot_path": "algotrade/runtime-baseline/production-source/app/scripts/container_healthcheck.py"
+    },
+    {
+      "classification": "LOCAL_EXACT",
+      "context": "trading",
+      "git_exact_commits": [
+        "848bd19a787039bc4230925a36503b534cfd7783",
+        "f47182a2111337603d906baf5cad4831b0e9ad61",
+        "850037f81858ca9f4d13d5b3854904fe067edafd",
+        "8f27daf3d34e098a721bd9f207d7687d1cfaf8a2",
+        "984d0f72c1bce7a0683d8138a4a5ce945a09fede",
+        "e40bc170cf52248f042609e1149799bc2a9650b8",
+        "2b38a356e905398670da4405b83a06e823746c5d",
+        "f5b37ccf87b800087ff724f8843a7589c490ae43"
+      ],
+      "local_path": "/Users/kotori/Documents/Trading/luna-vn30f/papertrade/scripts/diagnose.py",
+      "local_sha256": "1bf1b53bc914807a7f26f61626158465148b85bfad2aaa190eabdb69b2ad7a0b",
+      "origin": "image",
+      "origin_source": "943193395259.dkr.ecr.ap-southeast-1.amazonaws.com/algotrade-paper@sha256:d79e6a337705eb05c2ed1c20384cfeef12b9548b1ff94dd191b45c3e3dfbadb3",
+      "path": "scripts/diagnose.py",
+      "production_sha256": "1bf1b53bc914807a7f26f61626158465148b85bfad2aaa190eabdb69b2ad7a0b",
+      "snapshot_path": "algotrade/runtime-baseline/production-source/app/scripts/diagnose.py"
+    },
+    {
+      "classification": "LOCAL_EXACT",
+      "context": "trading",
+      "git_exact_commits": [
+        "848bd19a787039bc4230925a36503b534cfd7783",
+        "f47182a2111337603d906baf5cad4831b0e9ad61",
+        "850037f81858ca9f4d13d5b3854904fe067edafd",
+        "8f27daf3d34e098a721bd9f207d7687d1cfaf8a2",
+        "984d0f72c1bce7a0683d8138a4a5ce945a09fede",
+        "e40bc170cf52248f042609e1149799bc2a9650b8",
+        "2b38a356e905398670da4405b83a06e823746c5d",
+        "f5b37ccf87b800087ff724f8843a7589c490ae43"
+      ],
+      "local_path": "/Users/kotori/Documents/Trading/luna-vn30f/papertrade/scripts/patch_quickfix_arm.py",
+      "local_sha256": "b340c044c8d5a46d110539e7d084c7da52142ea5bb355d140f2fa88e7d61a257",
+      "origin": "image",
+      "origin_source": "943193395259.dkr.ecr.ap-southeast-1.amazonaws.com/algotrade-paper@sha256:d79e6a337705eb05c2ed1c20384cfeef12b9548b1ff94dd191b45c3e3dfbadb3",
+      "path": "scripts/patch_quickfix_arm.py",
+      "production_sha256": "b340c044c8d5a46d110539e7d084c7da52142ea5bb355d140f2fa88e7d61a257",
+      "snapshot_path": "algotrade/runtime-baseline/production-source/app/scripts/patch_quickfix_arm.py"
+    },
+    {
+      "classification": "LOCAL_EXACT",
+      "context": "trading",
+      "git_exact_commits": [
+        "848bd19a787039bc4230925a36503b534cfd7783",
+        "f47182a2111337603d906baf5cad4831b0e9ad61",
+        "850037f81858ca9f4d13d5b3854904fe067edafd",
+        "8f27daf3d34e098a721bd9f207d7687d1cfaf8a2",
+        "984d0f72c1bce7a0683d8138a4a5ce945a09fede",
+        "e40bc170cf52248f042609e1149799bc2a9650b8",
+        "2b38a356e905398670da4405b83a06e823746c5d",
+        "f5b37ccf87b800087ff724f8843a7589c490ae43"
+      ],
+      "local_path": "/Users/kotori/Documents/Trading/luna-vn30f/papertrade/scripts/smoke_fix_login.py",
+      "local_sha256": "c2b51a88f975b2098a9e5c2a1cc3007c34845d50a2e66ddfdf90479299723186",
+      "origin": "image",
+      "origin_source": "943193395259.dkr.ecr.ap-southeast-1.amazonaws.com/algotrade-paper@sha256:d79e6a337705eb05c2ed1c20384cfeef12b9548b1ff94dd191b45c3e3dfbadb3",
+      "path": "scripts/smoke_fix_login.py",
+      "production_sha256": "c2b51a88f975b2098a9e5c2a1cc3007c34845d50a2e66ddfdf90479299723186",
+      "snapshot_path": "algotrade/runtime-baseline/production-source/app/scripts/smoke_fix_login.py"
+    },
+    {
+      "classification": "LOCAL_EXACT",
+      "context": "trading",
+      "git_exact_commits": [
+        "848bd19a787039bc4230925a36503b534cfd7783",
+        "f47182a2111337603d906baf5cad4831b0e9ad61",
+        "850037f81858ca9f4d13d5b3854904fe067edafd",
+        "8f27daf3d34e098a721bd9f207d7687d1cfaf8a2",
+        "984d0f72c1bce7a0683d8138a4a5ce945a09fede",
+        "e40bc170cf52248f042609e1149799bc2a9650b8",
+        "2b38a356e905398670da4405b83a06e823746c5d",
+        "f5b37ccf87b800087ff724f8843a7589c490ae43"
+      ],
+      "local_path": "/Users/kotori/Documents/Trading/luna-vn30f/papertrade/scripts/smoke_kafka.py",
+      "local_sha256": "ee09b9ac17829d8bc67aa914c0a386ab007ba8d698c7fc75c1b645ab7c7c3664",
+      "origin": "image",
+      "origin_source": "943193395259.dkr.ecr.ap-southeast-1.amazonaws.com/algotrade-paper@sha256:d79e6a337705eb05c2ed1c20384cfeef12b9548b1ff94dd191b45c3e3dfbadb3",
+      "path": "scripts/smoke_kafka.py",
+      "production_sha256": "ee09b9ac17829d8bc67aa914c0a386ab007ba8d698c7fc75c1b645ab7c7c3664",
+      "snapshot_path": "algotrade/runtime-baseline/production-source/app/scripts/smoke_kafka.py"
+    }
+  ],
+  "local_only_files": [
+    "algotrade_adapter/market_schedule.py",
+    "alphas/master_unified/alpha.py",
+    "alphas/master_unified/bar_aggregator.py",
+    "alphas/master_unified/signal_composer.py",
+    "alphas/master_unified/supervisor.py",
+    "luna_core/__init__.py",
+    "luna_core/gates.py",
+    "luna_core/momentum.py",
+    "luna_core/policy.py",
+    "scripts/analyze_production_source.py",
+    "scripts/capture_ec2_baseline.py",
+    "scripts/capture_effective_source.py"
+  ],
+  "production_image": "943193395259.dkr.ecr.ap-southeast-1.amazonaws.com/algotrade-paper@sha256:d79e6a337705eb05c2ed1c20384cfeef12b9548b1ff94dd191b45c3e3dfbadb3",
+  "schema_version": 1,
+  "snapshot_verified": true,
+  "summary": {
+    "LOCAL_CHANGED_FROM_TRACKED_BASELINE": 3,
+    "LOCAL_EXACT": 15,
+    "RECOVERED_PRODUCTION_DIFFERS_FROM_LOCAL": 6
+  }
+}

@@ -31,3 +31,20 @@ lint:
 
 check: test lint
 	$(UV) run python -m compileall -q src scripts tests
+
+.PHONY: papertrade-setup papertrade-test papertrade-docker papertrade-check papertrade-dashboard
+
+papertrade-setup:
+	cd papertrade && ./scripts/bootstrap.sh
+
+papertrade-test:
+	cd papertrade && PYTHONPATH=. ./.venv/bin/python -m pytest tests -q
+
+papertrade-docker:
+	docker build --platform linux/amd64 --tag algotrade-paper:local ./papertrade
+
+papertrade-check:
+	./papertrade/scripts/check_live_alpha.sh
+
+papertrade-dashboard:
+	./papertrade/scripts/open_dashboard.sh

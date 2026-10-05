@@ -1,0 +1,18 @@
+[Unit]
+Description=Private Algotrade Account Dashboard
+After=docker.service network-online.target algotrade-paper.service
+Wants=network-online.target algotrade-paper.service
+Requires=docker.service
+
+[Service]
+Type=simple
+EnvironmentFile=-/etc/algotrade/release.env
+ExecStart=/opt/algotrade/current/deploy/aws/run-dashboard.sh
+ExecStop=-/usr/bin/docker stop -t 10 algotrade-dashboard
+Restart=always
+RestartSec=10
+TimeoutStopSec=20
+UMask=0027
+
+[Install]
+WantedBy=multi-user.target

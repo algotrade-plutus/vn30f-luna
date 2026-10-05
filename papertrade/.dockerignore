@@ -1,0 +1,13 @@
+.env
+.venv
+logs
+runtime
+state
+*.db
+*.db-*
+__pycache__
+*.pyc
+.DS_Store
+examples/official
+docs
+deploy

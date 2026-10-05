@@ -1,0 +1,19 @@
+[Unit]
+Description=Private Algotrade Account Dashboard
+After=docker.service network-online.target algotrade-paper.service
+Wants=network-online.target algotrade-paper.service
+Requires=docker.service
+
+[Service]
+Type=simple
+Environment=AWS_REGION=ap-southeast-1
+Environment=ALGOTRADE_IMAGE_REF=943193395259.dkr.ecr.ap-southeast-1.amazonaws.com/algotrade-paper@sha256:9b29731efefb19dff4424e68d69727f74362d4a204006cda5017bd70945a890d
+ExecStart=/usr/local/bin/algotrade-dashboard-run
+ExecStop=-/usr/bin/docker stop -t 10 algotrade-dashboard
+Restart=always
+RestartSec=10
+TimeoutStartSec=0
+TimeoutStopSec=20
+
+[Install]
+WantedBy=multi-user.target

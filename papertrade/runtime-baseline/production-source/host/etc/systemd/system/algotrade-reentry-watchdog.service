@@ -1,0 +1,11 @@
+[Unit]
+Description=Algotrade Afternoon Auto Re-entry Watchdog
+After=network.target docker.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /usr/local/bin/auto_reentry_watchdog.py
+Restart=no
+
+[Install]
+WantedBy=multi-user.target

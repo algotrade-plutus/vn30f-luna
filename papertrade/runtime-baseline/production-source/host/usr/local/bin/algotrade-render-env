@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+set -euo pipefail
+runtime_dir=/run/algotrade
+env_file="$runtime_dir/paperbroker.env"
+mkdir -p "$runtime_dir"
+chmod 700 "$runtime_dir"
+umask 077
+temp_file="$(mktemp "$runtime_dir/paperbroker.env.XXXXXX")"
+aws secretsmanager get-secret-value \
+  --region "$AWS_REGION" \
+  --secret-id "$ALGOTRADE_SECRET_ID" \
+  --query SecretString \
+  --output text \
+| python3 -c '
+import json, re, sys
+data = json.load(sys.stdin)
+for key, value in sorted(data.items()):
+    if not re.fullmatch(r"[A-Z][A-Z0-9_]*", key):
+        raise SystemExit(f"invalid environment key: {key!r}")
+    value = str(value)
+    if "\n" in value or "\r" in value:
+        raise SystemExit(f"multiline secret is not supported: {key}")
+    print(f"{key}={value}")
+' > "$temp_file"
+mv "$temp_file" "$env_file"
+chmod 600 "$env_file"

@@ -1,0 +1,17 @@
+{
+  "base_image": "943193395259.dkr.ecr.ap-southeast-1.amazonaws.com/algotrade-paper@sha256:d79e6a337705eb05c2ed1c20384cfeef12b9548b1ff94dd191b45c3e3dfbadb3",
+  "behavior_policy": "preserve_ec2_runtime_before_local_strategy_changes",
+  "effective_source_sha256": "2b14a86b43f91ad4f40c60ff16bd414da5377801fa0c812899fa8f84a0852bcd",
+  "git_commit": null,
+  "overrides": {
+    "algotrade_adapter/safe_alpha.py": "264defcad6ff15fc25581a56750daf2724d7de7cdba8aee639f262b432cf1527",
+    "alphas/master_unified/genesis_engine.py": "968ea5be7a07de4954dcdc4643efeeac272e0dfc64b32b57d27c6ec8b2c3e36a",
+    "alphas/master_unified/schedule.py": "b37519d8a4a3d28cade9b20f057b0b951950251860a316af57ba7d2e605ce97f",
+    "alphas/master_unified/service.py": "9d319046b4e26323e502693ab10a970e58cbcbb5445ec008c6dc13d84ebfee52",
+    "dashboard/static/index.html": "bb66b1c3efe03bc7412a9b8203e27d7fa6d9ee5b516268aadd7ff77fd328f99e"
+  },
+  "platform": "linux/amd64",
+  "release_id": "ec2-baseline-20260924-74f9b42fbda8",
+  "schema_version": 1,
+  "source_kind": "recovered_ec2_effective_runtime"
+}

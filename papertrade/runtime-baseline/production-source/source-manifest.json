@@ -1,0 +1,155 @@
+{
+  "captured_at": "2026-09-24T03:00:41.762969+00:00",
+  "dashboard_files": {
+    "dashboard/static/index.html": {
+      "origin": "host_override",
+      "sha256": "bb66b1c3efe03bc7412a9b8203e27d7fa6d9ee5b516268aadd7ff77fd328f99e",
+      "size": 16913,
+      "source": "/var/lib/algotrade/dashboard-static/index.html"
+    }
+  },
+  "files": {
+    "algotrade_adapter/__init__.py": {
+      "origin": "image",
+      "sha256": "cce02992207db04e6598387216fd9d29010da00980c0e0fb68c4b7a289bb2e22",
+      "size": 440,
+      "source": "943193395259.dkr.ecr.ap-southeast-1.amazonaws.com/algotrade-paper@sha256:d79e6a337705eb05c2ed1c20384cfeef12b9548b1ff94dd191b45c3e3dfbadb3"
+    },
+    "algotrade_adapter/account_snapshot.py": {
+      "origin": "image",
+      "sha256": "f8eb14fbcd2cf3dce97a122afd215d5b6340b852272c5fb9b53137343a309fd9",
+      "size": 7614,
+      "source": "943193395259.dkr.ecr.ap-southeast-1.amazonaws.com/algotrade-paper@sha256:d79e6a337705eb05c2ed1c20384cfeef12b9548b1ff94dd191b45c3e3dfbadb3"
+    },
+    "algotrade_adapter/client.py": {
+      "origin": "image",
+      "sha256": "0c1b581d710e4bbad90a679ce8aac99a9c3a6985761c6dcdcaf235d68b78b4f0",
+      "size": 5191,
+      "source": "943193395259.dkr.ecr.ap-southeast-1.amazonaws.com/algotrade-paper@sha256:d79e6a337705eb05c2ed1c20384cfeef12b9548b1ff94dd191b45c3e3dfbadb3"
+    },
+    "algotrade_adapter/market_data.py": {
+      "origin": "image",
+      "sha256": "c569133e6afcd639758a1a3643f0a5b3af14824054fd92d70e6b57c953667990",
+      "size": 11316,
+      "source": "943193395259.dkr.ecr.ap-southeast-1.amazonaws.com/algotrade-paper@sha256:d79e6a337705eb05c2ed1c20384cfeef12b9548b1ff94dd191b45c3e3dfbadb3"
+    },
+    "algotrade_adapter/safe_alpha.py": {
+      "origin": "host_override",
+      "sha256": "264defcad6ff15fc25581a56750daf2724d7de7cdba8aee639f262b432cf1527",
+      "size": 4580,
+      "source": "/var/lib/algotrade/safe_alpha.py"
+    },
+    "alphas/calendar/__init__.py": {
+      "origin": "image",
+      "sha256": "44c06819cbf4a4da97c86d9f97b0922761bfd27f4973bb6709949da6eef3c460",
+      "size": 291,
+      "source": "943193395259.dkr.ecr.ap-southeast-1.amazonaws.com/algotrade-paper@sha256:d79e6a337705eb05c2ed1c20384cfeef12b9548b1ff94dd191b45c3e3dfbadb3"
+    },
+    "alphas/calendar/schedule.py": {
+      "origin": "image",
+      "sha256": "a6037a6d46c7cfa013bef9d948441edfd2d6694fd8f276bc6778f8bbeb3f0576",
+      "size": 7843,
+      "source": "943193395259.dkr.ecr.ap-southeast-1.amazonaws.com/algotrade-paper@sha256:d79e6a337705eb05c2ed1c20384cfeef12b9548b1ff94dd191b45c3e3dfbadb3"
+    },
+    "alphas/calendar/service.py": {
+      "origin": "image",
+      "sha256": "bef9e62dd64c9bc3536950f2f5fcf22c71f8d0288fedf25a09d9d790fdb44590",
+      "size": 22475,
+      "source": "943193395259.dkr.ecr.ap-southeast-1.amazonaws.com/algotrade-paper@sha256:d79e6a337705eb05c2ed1c20384cfeef12b9548b1ff94dd191b45c3e3dfbadb3"
+    },
+    "alphas/master_unified/__init__.py": {
+      "origin": "image",
+      "sha256": "9d07f76b8451f66f98c2029e0ec0fbc98c67904241603481cb94223652075116",
+      "size": 608,
+      "source": "943193395259.dkr.ecr.ap-southeast-1.amazonaws.com/algotrade-paper@sha256:d79e6a337705eb05c2ed1c20384cfeef12b9548b1ff94dd191b45c3e3dfbadb3"
+    },
+    "alphas/master_unified/genesis_engine.py": {
+      "origin": "host_override",
+      "sha256": "968ea5be7a07de4954dcdc4643efeeac272e0dfc64b32b57d27c6ec8b2c3e36a",
+      "size": 4600,
+      "source": "/var/lib/algotrade/genesis_engine.py"
+    },
+    "alphas/master_unified/hybrid_engine.py": {
+      "origin": "image",
+      "sha256": "ba2a53b88019cd4fcb6e0e8c36e56822ac44941f25cc8d452ee93329ad186596",
+      "size": 11046,
+      "source": "943193395259.dkr.ecr.ap-southeast-1.amazonaws.com/algotrade-paper@sha256:d79e6a337705eb05c2ed1c20384cfeef12b9548b1ff94dd191b45c3e3dfbadb3"
+    },
+    "alphas/master_unified/schedule.py": {
+      "origin": "host_override",
+      "sha256": "b37519d8a4a3d28cade9b20f057b0b951950251860a316af57ba7d2e605ce97f",
+      "size": 7189,
+      "source": "/var/lib/algotrade/schedule.py"
+    },
+    "alphas/master_unified/service.py": {
+      "origin": "host_override",
+      "sha256": "9d319046b4e26323e502693ab10a970e58cbcbb5445ec008c6dc13d84ebfee52",
+      "size": 64949,
+      "source": "/var/lib/algotrade/service.py"
+    },
+    "dashboard/__init__.py": {
+      "origin": "image",
+      "sha256": "4a24f8a6f079c1018b64970c0300e7f168b9db18f2ef64351cbc5b3a22baa70c",
+      "size": 47,
+      "source": "943193395259.dkr.ecr.ap-southeast-1.amazonaws.com/algotrade-paper@sha256:d79e6a337705eb05c2ed1c20384cfeef12b9548b1ff94dd191b45c3e3dfbadb3"
+    },
+    "dashboard/healthcheck.py": {
+      "origin": "image",
+      "sha256": "04c927315d7ba89dc1b6246a30090ae3bcfe8ce57b677c4f0b1b49c34756fd16",
+      "size": 295,
+      "source": "943193395259.dkr.ecr.ap-southeast-1.amazonaws.com/algotrade-paper@sha256:d79e6a337705eb05c2ed1c20384cfeef12b9548b1ff94dd191b45c3e3dfbadb3"
+    },
+    "dashboard/server.py": {
+      "origin": "image",
+      "sha256": "86f0ee176b54eb487fd9a01e9047b36e5e02d325e5c52e7a0bdfb46537732613",
+      "size": 3386,
+      "source": "943193395259.dkr.ecr.ap-southeast-1.amazonaws.com/algotrade-paper@sha256:d79e6a337705eb05c2ed1c20384cfeef12b9548b1ff94dd191b45c3e3dfbadb3"
+    },
+    "dashboard/static/index.html": {
+      "origin": "image",
+      "sha256": "e80f5d63984f9eca25caa574461571b9b30021dafde480f0f73a7063d33dd58d",
+      "size": 15506,
+      "source": "943193395259.dkr.ecr.ap-southeast-1.amazonaws.com/algotrade-paper@sha256:d79e6a337705eb05c2ed1c20384cfeef12b9548b1ff94dd191b45c3e3dfbadb3"
+    },
+    "scripts/container_entrypoint.py": {
+      "origin": "image",
+      "sha256": "f03067c005e223e861791ba7938307f8d9d5c1bbc45c62e05628ca9c9bd10991",
+      "size": 3662,
+      "source": "943193395259.dkr.ecr.ap-southeast-1.amazonaws.com/algotrade-paper@sha256:d79e6a337705eb05c2ed1c20384cfeef12b9548b1ff94dd191b45c3e3dfbadb3"
+    },
+    "scripts/container_healthcheck.py": {
+      "origin": "image",
+      "sha256": "a8c343a60342bf29296dc8fb250645ab21c65a2dfcf6eab056470c3c2754e6eb",
+      "size": 394,
+      "source": "943193395259.dkr.ecr.ap-southeast-1.amazonaws.com/algotrade-paper@sha256:d79e6a337705eb05c2ed1c20384cfeef12b9548b1ff94dd191b45c3e3dfbadb3"
+    },
+    "scripts/diagnose.py": {
+      "origin": "image",
+      "sha256": "1bf1b53bc914807a7f26f61626158465148b85bfad2aaa190eabdb69b2ad7a0b",
+      "size": 1648,
+      "source": "943193395259.dkr.ecr.ap-southeast-1.amazonaws.com/algotrade-paper@sha256:d79e6a337705eb05c2ed1c20384cfeef12b9548b1ff94dd191b45c3e3dfbadb3"
+    },
+    "scripts/patch_quickfix_arm.py": {
+      "origin": "image",
+      "sha256": "b340c044c8d5a46d110539e7d084c7da52142ea5bb355d140f2fa88e7d61a257",
+      "size": 1318,
+      "source": "943193395259.dkr.ecr.ap-southeast-1.amazonaws.com/algotrade-paper@sha256:d79e6a337705eb05c2ed1c20384cfeef12b9548b1ff94dd191b45c3e3dfbadb3"
+    },
+    "scripts/smoke_fix_login.py": {
+      "origin": "image",
+      "sha256": "c2b51a88f975b2098a9e5c2a1cc3007c34845d50a2e66ddfdf90479299723186",
+      "size": 1069,
+      "source": "943193395259.dkr.ecr.ap-southeast-1.amazonaws.com/algotrade-paper@sha256:d79e6a337705eb05c2ed1c20384cfeef12b9548b1ff94dd191b45c3e3dfbadb3"
+    },
+    "scripts/smoke_kafka.py": {
+      "origin": "image",
+      "sha256": "ee09b9ac17829d8bc67aa914c0a386ab007ba8d698c7fc75c1b645ab7c7c3664",
+      "size": 1723,
+      "source": "943193395259.dkr.ecr.ap-southeast-1.amazonaws.com/algotrade-paper@sha256:d79e6a337705eb05c2ed1c20384cfeef12b9548b1ff94dd191b45c3e3dfbadb3"
+    }
+  },
+  "image": "943193395259.dkr.ecr.ap-southeast-1.amazonaws.com/algotrade-paper@sha256:d79e6a337705eb05c2ed1c20384cfeef12b9548b1ff94dd191b45c3e3dfbadb3",
+  "inventory": "algotrade/runtime-baseline/baseline-inventory.json",
+  "schema_version": 1,
+  "verified_against_effective_runtime": true
+}

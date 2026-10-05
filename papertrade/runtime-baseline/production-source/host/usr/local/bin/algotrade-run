@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+set -euo pipefail
+/usr/local/bin/algotrade-render-env
+registry="${ALGOTRADE_IMAGE_REF%%/*}"
+aws ecr get-login-password --region "$AWS_REGION" | docker login --username AWS --password-stdin "$registry" >/dev/null
+docker pull "$ALGOTRADE_IMAGE_REF"
+docker rm -f algotrade-paper >/dev/null 2>&1 || true
+exec docker run --name algotrade-paper \
+  --env-file /run/algotrade/paperbroker.env \
+  --env ALPHA_FACTORY=alphas.master_unified.service:build_genesis_service \
+  --log-driver json-file \
+  --log-opt max-size=10m \
+  --log-opt max-file=5 \
+  --read-only \
+  --tmpfs /tmp:rw,noexec,nosuid,size=64m \
+  --mount type=bind,src=/var/lib/algotrade/runtime,dst=/app/runtime \
+  --mount type=bind,src=/var/lib/algotrade/state,dst=/app/state \
+  --mount type=bind,src=/var/log/algotrade,dst=/app/logs \
+  --mount type=bind,src=/var/lib/algotrade/service.py,dst=/app/alphas/master_unified/service.py \
+  --mount type=bind,src=/var/lib/algotrade/genesis_engine.py,dst=/app/alphas/master_unified/genesis_engine.py \
+  --mount type=bind,src=/var/lib/algotrade/schedule.py,dst=/app/alphas/master_unified/schedule.py \
+  "$ALGOTRADE_IMAGE_REF"

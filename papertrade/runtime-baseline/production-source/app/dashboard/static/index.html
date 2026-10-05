@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>Steady Fox · PaperTrade Monitor</title>
+  <style>
+    :root {
+      --bg: #080c12;
+      --panel: #101722;
+      --panel-2: #151e2b;
+      --line: #263244;
+      --text: #edf3fa;
+      --muted: #93a1b5;
+      --blue: #63a7ff;
+      --green: #47d7a0;
+      --amber: #ffca6a;
+      --red: #ff6b7f;
+      --radius: 18px;
+      font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      background:
+        radial-gradient(circle at 88% 2%, rgba(45, 118, 213, .18), transparent 28rem),
+        radial-gradient(circle at 8% 24%, rgba(71, 215, 160, .08), transparent 24rem),
+        var(--bg);
+      color: var(--text);
+    }
+    .shell { width: min(1240px, calc(100% - 32px)); margin: 0 auto; padding: 28px 0 56px; }
+    header { display: flex; justify-content: space-between; gap: 18px; align-items: center; margin-bottom: 24px; }
+    .brand { display: flex; gap: 13px; align-items: center; }
+    .mark {
+      width: 44px; height: 44px; border-radius: 14px; display: grid; place-items: center;
+      color: #07101d; font-weight: 900; letter-spacing: -.08em;
+      background: linear-gradient(145deg, var(--blue), var(--green));
+      box-shadow: 0 10px 32px rgba(72, 157, 255, .25);
+    }
+    h1 { font-size: clamp(20px, 3vw, 28px); margin: 0; letter-spacing: -.04em; }
+    .sub { color: var(--muted); font-size: 13px; margin-top: 4px; }
+    .live { display: flex; align-items: center; gap: 9px; color: var(--muted); font-size: 13px; }
+    .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--amber); box-shadow: 0 0 0 5px rgba(255,202,106,.1); }
+    .dot.ok { background: var(--green); box-shadow: 0 0 0 5px rgba(71,215,160,.1); }
+    .dot.bad { background: var(--red); box-shadow: 0 0 0 5px rgba(255,107,127,.1); }
+    .hero { display: grid; grid-template-columns: 1.5fr 1fr; gap: 16px; margin-bottom: 16px; }
+    .panel { background: linear-gradient(160deg, rgba(21,30,43,.96), rgba(13,19,29,.98)); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: 0 18px 50px rgba(0,0,0,.2); }
+    .balance { padding: 26px; min-height: 225px; display: flex; flex-direction: column; justify-content: space-between; }
+    .eyebrow { color: var(--muted); font-size: 12px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+    .big { font-size: clamp(34px, 6vw, 57px); font-weight: 760; letter-spacing: -.065em; margin: 10px 0 4px; }
+    .money-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 22px; }
+    .mini { padding-top: 14px; border-top: 1px solid var(--line); }
+    .mini span { display: block; color: var(--muted); font-size: 12px; margin-bottom: 7px; }
+    .mini strong { font-size: 16px; }
+    .next { padding: 24px; display: flex; flex-direction: column; }
+    .next-time { font-size: 30px; letter-spacing: -.04em; margin: 18px 0 2px; }
+    .next-date { color: var(--muted); font-size: 13px; }
+    .action { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px; margin-top: auto; background: rgba(99,167,255,.08); border: 1px solid rgba(99,167,255,.22); border-radius: 14px; }
+    .action strong { color: var(--blue); }
+    .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 16px; }
+    .metric { padding: 19px 20px; }
+    .metric .value { font-size: 24px; font-weight: 720; letter-spacing: -.04em; margin-top: 10px; }
+    .metric .hint { color: var(--muted); font-size: 12px; margin-top: 5px; }
+    .good { color: var(--green) !important; }
+    .warn { color: var(--amber) !important; }
+    .bad { color: var(--red) !important; }
+    .section { margin-top: 16px; overflow: hidden; }
+    .section-head { display: flex; justify-content: space-between; align-items: center; padding: 20px 22px 15px; }
+    h2 { font-size: 16px; margin: 0; letter-spacing: -.02em; }
+    .pill { color: var(--muted); font-size: 11px; border: 1px solid var(--line); padding: 5px 9px; border-radius: 999px; }
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; min-width: 720px; }
+    th { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .08em; text-align: left; padding: 11px 22px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+    td { padding: 15px 22px; border-bottom: 1px solid rgba(38,50,68,.65); font-size: 13px; }
+    tr:last-child td { border-bottom: 0; }
+    td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+    .empty { color: var(--muted); padding: 26px 22px 30px; text-align: center; font-size: 13px; }
+    .health-list { display: flex; gap: 9px; flex-wrap: wrap; margin-top: 13px; }
+    .health-chip { display: inline-flex; align-items: center; gap: 7px; color: var(--muted); background: rgba(255,255,255,.025); border: 1px solid var(--line); border-radius: 999px; padding: 7px 10px; font-size: 12px; }
+    .health-chip i { width: 7px; height: 7px; border-radius: 50%; background: var(--red); }
+    .health-chip.ok i { background: var(--green); }
+    footer { color: var(--muted); font-size: 11px; text-align: center; margin-top: 22px; }
+    @media (max-width: 900px) {
+      .hero { grid-template-columns: 1fr; }
+      .grid { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 560px) {
+      .shell { width: min(100% - 20px, 1240px); padding-top: 18px; }
+      header { align-items: flex-start; }
+      .live { padding-top: 8px; }
+      .balance, .next { padding: 20px; }
+      .money-row { grid-template-columns: 1fr; }
+      .grid { grid-template-columns: 1fr 1fr; gap: 10px; }
+      .metric { padding: 16px; }
+      .metric .value { font-size: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header>
+      <div class="brand">
+        <div class="mark" aria-hidden="true">SF</div>
+        <div><h1>Steady Fox</h1><div class="sub">Calendar Alpha · PaperTrade Monitor</div></div>
+      </div>
+      <div class="live"><span id="liveDot" class="dot"></span><span id="updated">Đang kết nối…</span></div>
+    </header>
+
+    <section class="hero">
+      <article class="panel balance">
+        <div><div class="eyebrow">Tổng tài sản</div><div id="balance" class="big">—</div></div>
+        <div class="money-row">
+          <div class="mini"><span>Tiền khả dụng</span><strong id="cash">—</strong></div>
+          <div class="mini"><span>Ký quỹ target</span><strong id="targetMargin">—</strong></div>
+          <div class="mini"><span>Buffer sau ký quỹ</span><strong id="buffer">—</strong></div>
+        </div>
+      </article>
+      <article class="panel next">
+        <div class="eyebrow">Quyết định tiếp theo</div>
+        <strong id="nextTime" class="next-time">—</strong>
+        <div id="nextDate" class="next-date">Đang tải lịch…</div>
+        <div class="action"><span id="reason">Calendar</span><strong id="nextTarget">—</strong></div>
+      </article>
+    </section>
+
+    <section class="grid" aria-label="Chỉ số vận hành">
+      <article class="panel metric"><div class="eyebrow">Vị thế</div><div id="position" class="value">—</div><div id="positionHint" class="hint">—</div></article>
+      <article class="panel metric"><div class="eyebrow">P&amp;L chưa chốt</div><div id="pnl" class="value">—</div><div class="hint">Tổng vị thế hiện tại</div></article>
+      <article class="panel metric"><div class="eyebrow">Sức mua</div><div id="capacity" class="value">—</div><div class="hint">Max BUY từ broker</div></article>
+      <article class="panel metric"><div class="eyebrow">Margin phái sinh</div><div id="marginRatio" class="value">—</div><div id="healthList" class="health-list"></div></article>
+    </section>
+
+    <section class="panel section">
+      <div class="section-head"><h2>Vị thế hiện tại</h2><span id="positionCount" class="pill">0 mã</span></div>
+      <div id="positions"></div>
+    </section>
+
+    <section class="panel section">
+      <div class="section-head"><h2>Lệnh gần đây</h2><span class="pill">7 ngày</span></div>
+      <div id="orders"></div>
+    </section>
+
+    <section class="panel section">
+      <div class="section-head"><h2>Giao dịch đã khớp</h2><span class="pill">7 ngày</span></div>
+      <div id="transactions"></div>
+    </section>
+
+    <footer>Private read-only dashboard · Không có chức năng đặt lệnh</footer>
+  </main>
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const money = new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 });
+    const number = new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 2 });
+    const reasonLabels = { tue_wed: 'Tue + Wed', som2: 'Hai phiên đầu tháng', pre_holiday: 'Trước kỳ nghỉ', expiry_flatten: 'Đáo hạn · đóng vị thế' };
+    const val = (x) => x === null || x === undefined ? null : Number(x);
+    const fmtMoney = (x) => val(x) === null ? '—' : money.format(Number(x));
+    const fmtNum = (x) => val(x) === null ? '—' : number.format(Number(x));
+    const setTone = (el, x) => { el.classList.remove('good','bad','warn'); if (x > 0) el.classList.add('good'); if (x < 0) el.classList.add('bad'); };
+    const esc = (x) => String(x ?? '—').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+
+    function healthChip(label, ok) {
+      return `<span class="health-chip ${ok ? 'ok' : ''}"><i></i>${esc(label)}</span>`;
+    }
+    function empty(text) { return `<div class="empty">${esc(text)}</div>`; }
+    function table(headers, rows) {
+      return `<div class="table-wrap"><table><thead><tr>${headers.map(h => `<th class="${h.num ? 'num' : ''}">${esc(h.label)}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table></div>`;
+    }
+
+    function render(data) {
+      const health = data.health || {};
+      const snap = data.account || {};
+      const account = snap.account || {};
+      const risk = snap.risk || {};
+      const positions = Array.isArray(snap.positions) ? snap.positions : [];
+      const orders = Array.isArray(snap.orders) ? snap.orders.slice().reverse() : [];
+      const transactions = Array.isArray(snap.transactions) ? snap.transactions.slice().reverse() : [];
+      const freshAt = Math.min(Number(health.updated_at || 0), Number(snap.updated_at || 0));
+      const fresh = freshAt && Date.now() / 1000 - freshAt < 90;
+      const healthy = health.healthy === true && health.worker_alive === true && health.fix_logged_on === true && fresh;
+      $('liveDot').className = `dot ${healthy ? 'ok' : 'bad'}`;
+      $('updated').textContent = freshAt ? `${healthy ? 'Đang hoạt động' : 'Cần kiểm tra'} · ${new Date(freshAt * 1000).toLocaleTimeString('vi-VN')}` : 'Chưa có snapshot';
+
+      $('balance').textContent = fmtMoney(account.total_balance);
+      $('cash').textContent = fmtMoney(account.remain_cash);
+      const ratio = val(account.derivative_margin_ratio);
+      const latest = val(risk.latest_price);
+      const targetQty = val(risk.target_qty) || val(health.configured_qty) || 0;
+      const targetMargin = latest !== null && ratio !== null ? latest * 100000 * ratio * targetQty : null;
+      const buffer = val(account.total_balance) !== null && targetMargin !== null ? Number(account.total_balance) - targetMargin : null;
+      $('targetMargin').textContent = fmtMoney(targetMargin);
+      $('buffer').textContent = fmtMoney(buffer);
+      setTone($('buffer'), buffer || 0);
+
+      const decision = health.next_decision_at ? new Date(health.next_decision_at) : null;
+      $('nextTime').textContent = decision && !Number.isNaN(decision.valueOf()) ? decision.toLocaleTimeString('vi-VN', {hour:'2-digit', minute:'2-digit'}) : '—';
+      $('nextDate').textContent = decision && !Number.isNaN(decision.valueOf()) ? `${decision.toLocaleDateString('vi-VN')} · tín hiệu ${health.next_signal_day || '—'}` : 'Chưa có lịch';
+      $('nextTarget').textContent = `${Number(health.next_target_qty || 0) > 0 ? 'LONG' : 'FLAT'} ${Math.abs(Number(health.next_target_qty || 0))} HĐ`;
+      $('reason').textContent = (health.next_reasons || []).map(x => reasonLabels[x] || x).join(' + ') || 'Không có tín hiệu';
+
+      const totalQty = positions.reduce((s, x) => s + Number(x.quantity || 0), 0);
+      const totalPnl = positions.reduce((s, x) => s + Number(x.pnl || 0), 0);
+      $('position').textContent = `${totalQty > 0 ? 'LONG ' : totalQty < 0 ? 'SHORT ' : ''}${Math.abs(totalQty)} HĐ`;
+      $('positionHint').textContent = positions[0]?.instrument || health.symbol || '—';
+      $('pnl').textContent = fmtMoney(totalPnl);
+      setTone($('pnl'), totalPnl);
+      $('capacity').textContent = `${fmtNum(risk.max_buy_qty)} HĐ`;
+      $('marginRatio').textContent = ratio === null ? '—' : `${number.format(ratio * 100)}%`;
+      $('healthList').innerHTML = healthChip('FIX', health.fix_logged_on === true) + healthChip('Kafka', val(health.feed_age_s) !== null && Number(health.feed_age_s) < 120);
+
+      $('positionCount').textContent = `${positions.length} mã`;
+      $('positions').innerHTML = positions.length ? table([
+        {label:'Mã'}, {label:'SL',num:true}, {label:'Giá vốn',num:true}, {label:'Giá hiện tại',num:true}, {label:'P&L',num:true}
+      ], positions.map(x => `<tr><td>${esc(x.instrument)}</td><td class="num">${fmtNum(x.quantity)}</td><td class="num">${fmtNum(x.avg_price)}</td><td class="num">${fmtNum(x.current_price)}</td><td class="num ${Number(x.pnl || 0) >= 0 ? 'good':'bad'}">${fmtMoney(x.pnl)}</td></tr>`)) : empty('Chưa có vị thế');
+
+      $('orders').innerHTML = orders.length ? table([
+        {label:'Thời gian'}, {label:'Mã'}, {label:'Chiều'}, {label:'SL',num:true}, {label:'Đã khớp',num:true}, {label:'Giá',num:true}, {label:'Trạng thái'}
+      ], orders.map(x => `<tr><td>${esc(x.last_update || x.order_date)}</td><td>${esc(x.symbol)}</td><td class="${x.side === 'BUY' ? 'good':'bad'}">${esc(x.side)}</td><td class="num">${fmtNum(x.quantity)}</td><td class="num">${fmtNum(x.filled_quantity)}</td><td class="num">${fmtNum(x.avg_fill_price ?? x.price)}</td><td>${esc(x.status)}</td></tr>`)) : empty('Chưa có lệnh trong 7 ngày');
+
+      $('transactions').innerHTML = transactions.length ? table([
+        {label:'Thời gian'}, {label:'Mã'}, {label:'Chiều'}, {label:'SL',num:true}, {label:'Giá khớp',num:true}, {label:'Phí',num:true}
+      ], transactions.map(x => `<tr><td>${esc(x.time)}</td><td>${esc(x.symbol)}</td><td>${esc(x.side)}</td><td class="num">${fmtNum(x.quantity)}</td><td class="num">${fmtNum(x.price)}</td><td class="num">${fmtMoney(x.fee)}</td></tr>`)) : empty('Chưa có giao dịch trong 7 ngày');
+    }
+
+    async function refresh() {
+      try {
+        const response = await fetch('/api/status', { cache: 'no-store' });
+        if (!response.ok) throw new Error('status unavailable');
+        render(await response.json());
+      } catch (_) {
+        $('liveDot').className = 'dot bad';
+        $('updated').textContent = 'Mất kết nối dashboard';
+      }
+    }
+    refresh();
+    setInterval(refresh, 5000);
+  </script>
+</body>
+</html>

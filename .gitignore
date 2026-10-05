@@ -49,3 +49,11 @@ plutus-verify/
 
 # Local Aphelios credentials; source, model, and research artefacts are versioned.
 PS_V30_Vien_Aphelios/config.json
+
+# PaperTrade runtime/local artifacts
+papertrade/.venv/
+papertrade/runtime/
+papertrade/state/
+papertrade/logs/
+papertrade/.pytest_cache/
+papertrade/.ruff_cache/

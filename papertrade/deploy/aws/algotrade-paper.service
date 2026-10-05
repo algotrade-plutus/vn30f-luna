@@ -1,0 +1,20 @@
+[Unit]
+Description=Algotrade Paper Trading Runtime
+After=docker.service network-online.target
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=simple
+Environment=AWS_REGION=ap-southeast-1
+Environment=ALGOTRADE_SECRET_ID=/algotrade/paperbroker
+EnvironmentFile=-/etc/algotrade/release.env
+ExecStart=/opt/algotrade/current/deploy/aws/run-container.sh
+ExecStop=-/usr/bin/docker stop -t 60 algotrade-paper
+Restart=always
+RestartSec=10
+TimeoutStopSec=75
+UMask=0027
+
+[Install]
+WantedBy=multi-user.target
