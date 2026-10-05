@@ -1,25 +1,26 @@
 """Application Use Case: Trading Cycle.
-Executes the core trade cycle: bar ingestion -> strategy alpha -> order generation -> broker execution.
+Executes the core trade cycle: bar ingestion -> signal evaluation -> risk guard -> broker execution.
+Decoupled from specific strategy implementations via ISignalGateway.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
-from decimal import Decimal
 import logging
 
 from src.application.ports.broker_port import IBrokerGateway
+from src.application.ports.signal_port import ISignalGateway
 from src.application.use_cases.risk_monitor import RiskMonitorUseCase
 from src.domain.entities.bar import Bar
 from src.domain.entities.order import Order, OrderType, Side
-from src.domain.strategy.luna_strategy import LunaStrategy
 
 logger = logging.getLogger(__name__)
 
 
-@dataclass
+@dataclass(frozen=True)
 class CycleLog:
     """Record of an executed trading cycle step."""
+
     timestamp: datetime
     symbol: str
     bar_close: float
@@ -32,24 +33,24 @@ class CycleLog:
 
 
 class TradingCycleUseCase:
-    """Orchestrates strategy evaluation and order dispatch for each market bar."""
+    """Orchestrates signal evaluation, risk checks, and order dispatch for each market bar."""
 
     def __init__(
         self,
-        strategy: LunaStrategy,
+        signal_gateway: ISignalGateway,
         broker: IBrokerGateway,
         risk_monitor: RiskMonitorUseCase,
         target_symbol: str,
     ) -> None:
-        self.strategy = strategy
+        self.signal_gateway = signal_gateway
         self.broker = broker
         self.risk_monitor = risk_monitor
         self.target_symbol = target_symbol
         self.logs: list[CycleLog] = []
 
-    def on_bar(self, bar: Bar) -> CycleLog | None:
-        """Process incoming completed bar, compute alpha signal, and place orders."""
-        target_pos, reason = self.strategy.on_bar(bar)
+    def on_bar(self, bar: Bar) -> CycleLog:
+        """Process incoming completed bar, compute alpha signal, evaluate risk, and place orders."""
+        target_pos, reason = self.signal_gateway.get_target_position(bar.timestamp, bar)
         current_pos = self.broker.get_position(self.target_symbol)
         curr_qty = current_pos.net_quantity
         delta = target_pos - curr_qty
@@ -58,14 +59,18 @@ class TradingCycleUseCase:
         order_status = "NONE"
 
         if delta != 0:
-            # Check risk before expanding exposure
             is_increasing_exposure = abs(target_pos) > abs(curr_qty)
             risk_verdict = self.risk_monitor.evaluate()
 
             if is_increasing_exposure and not risk_verdict.can_trade:
                 order_action = f"VETOED_BY_RISK: {risk_verdict.message}"
                 order_status = "BLOCKED"
-                logger.warning("Order blocked by risk: target %d, current %d", target_pos, curr_qty)
+                logger.warning(
+                    "Order blocked by risk: target %d, current %d, reason: %s",
+                    target_pos,
+                    curr_qty,
+                    risk_verdict.message,
+                )
             else:
                 side = Side.BUY if delta > 0 else Side.SELL
                 qty = abs(delta)

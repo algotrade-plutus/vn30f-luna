@@ -1,0 +1,61 @@
+{
+  "all_gates_pass": true,
+  "alpha": "PS_V30_Vien_Calibrum",
+  "gates": {
+    "exact_master_parity": true,
+    "futures_leak_pass": true,
+    "generate_under_20_seconds": true,
+    "margin_ge_15_bps": true,
+    "overfit_pass": true,
+    "sharpe_ge_1_5": true,
+    "trades_ge_180": true
+  },
+  "generate_seconds": 0.43701058300212026,
+  "known_limit": "time_to_start=Auto does not prove that production supplies a completed 30-minute bar; scheduler expansion and partial-bar timing still require a production payload trace.",
+  "native_metrics": {
+    "hitrate": 52.58,
+    "hitrate_long": 56.18,
+    "hitrate_short": 48.37,
+    "margin_after_fee": 21.44,
+    "mdd": 12.53,
+    "mdd_point": 103.3,
+    "profit_after_fee": 2056.5,
+    "sharpe_after_fee": 3.22,
+    "total_profit": 2428.9,
+    "total_trade": 466,
+    "trading_per_day": 0.62
+  },
+  "parity": {
+    "close_match": true,
+    "datetime_match": true,
+    "max_position_abs_diff": 0,
+    "position_mismatches": 0
+  },
+  "scope": {
+    "end": "2022-12-30 14:30:00",
+    "feeds": [
+      {
+        "rows": 7509,
+        "ticker": "vn30f1m",
+        "timeframe": "30m"
+      },
+      {
+        "rows": 7384,
+        "ticker": "vn30",
+        "timeframe": "30m"
+      }
+    ],
+    "rows": 7509,
+    "start": "2020-01-02 09:00:00"
+  },
+  "sha256": {
+    "config": "5a4adf846e9b33fea47ea62c6062fa092198e04736e8e1d008ca233b59ecf9ec",
+    "model": "f78440b77450e888b82068e185acbddabf7278f3ecff29757e5cfc85d255051f",
+    "source": "5c7bb1c74bd5478309f7b0cca598f76a1a2e6d54b7ecdf881813b122845c1fe2"
+  },
+  "submission_files": [
+    "PS_V30_Vien_Calibrum.py",
+    "config.json",
+    "PS_V30_Vien_Calibrum_model.pt"
+  ]
+}

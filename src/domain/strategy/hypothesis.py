@@ -1,4 +1,4 @@
-"""Domain Strategy: Luna Alpha Hypothesis and Falsification Contract.
+"""Domain Strategy: Calibrum Alpha Hypothesis and Falsification Contract.
 Pure Python standard library only.
 """
 from __future__ import annotations
@@ -21,14 +21,17 @@ class FalsificationCriteria:
 
 @dataclass(frozen=True)
 class StrategyHypothesis:
-    """Formal hypothesis record for Alpha Luna."""
-    strategy_id: str = "luna_v0"
-    name: str = "Alpha Luna Dual-Engine (Calendar + T+2 Momentum + FOMO Gate)"
+    """Formal hypothesis record for Calibrum Master Ensemble."""
+
+    strategy_id: str = "calibrum_v1"
+    name: str = "Calibrum Master Ensemble (Ridge H2 + Shinji + Calendar)"
     instrument: str = "VN30F"
     timeframe: str = "30m"
     economic_premise: str = (
-        "Exploits liquidity patterns from start-of-month fund flows, mid-week accumulation, "
-        "and pre-holiday risk aversion on VN30 index futures, "
-        "complemented by T+2 institutional momentum and protected by a FOMO overbought veto."
+        "Calibrum combines three uncorrelated 30-minute alpha engines on VN30 index futures: "
+        "a regularized linear model (Ridge H2) on normalized technical price deviations, "
+        "a basis spread mean-reversion engine (Shinji) between front-month futures and spot index, "
+        "and institutional calendar anomaly patterns (turn-of-month, weekday, and pre-holiday)."
     )
     criteria: FalsificationCriteria = FalsificationCriteria()
+

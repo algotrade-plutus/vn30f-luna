@@ -22,11 +22,11 @@ Mọi mã nguồn mới được tổ chức chặt chẽ trong thư mục `src/
 src/
 ├── domain/                  # [TẦNG 1] Nghiệp vụ cốt lõi (Core Business)
 │   ├── entities/            # Order, Position, Fill, Margin, Tick, Bar
-│   └── strategy/            # LunaSignals, CalendarRules, FOMOGatekeeper
+│   └── strategy/            # CalendarRules, Hypothesis
 │
 ├── application/             # [TẦNG 2] Use Cases & Ports (Interfaces)
 │   ├── ports/               # IBrokerGateway, IMarketFeedGateway, IStateStore
-│   └── use_cases/           # TradingCycleUseCase, RiskMonitorUseCase
+│   └── use_cases/           # RiskMonitorUseCase
 │
 ├── adapters/                # [TẦNG 3] Interface Adapters (Cầu nối thực thi)
 │   ├── brokers/             # PlutusBrokerAdapter (Backtest), LivePaperAdapter (EC2 FIX/REST)

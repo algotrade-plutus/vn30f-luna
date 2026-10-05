@@ -44,7 +44,7 @@ def main() -> None:
         color="#1f77b4",
         linewidth=1.7,
         label=(
-            f"Luna IS — Sharpe {float(report['sharpe']):.2f} "
+            f"Calibrum IS — Sharpe {float(report['sharpe']):.2f} "
             f"| net return {float(report['return_pct']):.1f}%"
         ),
     )

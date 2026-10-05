@@ -120,8 +120,13 @@ def test_postgres_research_query_is_bounded_and_keeps_published_bands() -> None:
 def test_short_real_plutus_run_has_fills_and_engine_evidence() -> None:
     futures, index = _frames()
     source = PlutusBarSource(futures, index)
+    # Provide a simple external target: go long at 09:30 on day 1
+    targets = {datetime(2024, 1, 2, 9, 30): 1}
     result = PlutusResearchRunner(source).run(
-        date(2024, 1, 2), date(2024, 1, 3), sample="in_sample"
+        date(2024, 1, 2), date(2024, 1, 3),
+        sample="in_sample",
+        target_by_start=targets,
+        signal_name="test",
     )
 
     assert result.summary["engine"] == "plutus.market.session.ExchangeSession"
@@ -148,11 +153,18 @@ def test_forward_sample_uses_holdout_sharpe_threshold(monkeypatch) -> None:
     monkeypatch.setattr(
         plutus_research_runner, "FalsificationCriteria", lambda: criteria
     )
+    targets = {datetime(2024, 1, 2, 9, 30): 1}
     in_sample = runner.run(
-        date(2024, 1, 2), date(2024, 1, 3), sample="in_sample"
+        date(2024, 1, 2), date(2024, 1, 3),
+        sample="in_sample",
+        target_by_start=targets,
+        signal_name="test",
     )
     forward = runner.run(
-        date(2024, 1, 2), date(2024, 1, 3), sample="forward"
+        date(2024, 1, 2), date(2024, 1, 3),
+        sample="forward",
+        target_by_start=targets,
+        signal_name="test",
     )
 
     assert forward.summary["sample"] == "forward"
