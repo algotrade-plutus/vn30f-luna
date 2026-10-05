@@ -115,6 +115,7 @@ scripts/           reproducible research entry points
 config/            frozen Luna parameter profile
 tests/             Luna-owned tests
 plutus/            pinned Git submodule for the exchange engine
+papertrade/        Step 7 PaperTrade runtime, EC2 deploy scripts, and ops docs
 ```
 
 Market data, local reports, working notes, `.env`, and the full Plutus source
@@ -159,6 +160,20 @@ The first command for a window can take minutes because it aggregates raw tick
 and volume data in PostgreSQL. Reuse loaded bars for multiple parameter
 variants where possible; do not rerun a full database aggregation merely to
 change one strategy parameter.
+
+## Paper Trading (Step 7)
+
+The Step 7 runtime is packaged under [`papertrade/`](papertrade/). It is the
+PaperTrade/EC2 boundary: adapter, dashboard, deployment scripts, runtime
+baseline, and operations docs. Research code in `src/` remains separate.
+
+- Setup local runtime env: `make papertrade-setup`
+- Run PaperTrade tests: `make papertrade-test`
+- Build Linux image: `make papertrade-docker`
+- Read-only EC2 status: `make papertrade-check`
+- Open private dashboard tunnel: `make papertrade-dashboard`
+
+`papertrade/.env` is local-only and git-ignored. Do not commit credentials.
 
 ## 8. Known limitations
 

@@ -1,0 +1,667 @@
+{
+  "capture": {
+    "captured_at": "2026-09-24T03:02:31.270208+00:00",
+    "instance_id": "i-04ccc8700d99ec425",
+    "region": "ap-southeast-1",
+    "ssm_command_id": "02f53439-f0ee-4c9c-b846-cbe0fb68e06a"
+  },
+  "containers": [
+    {
+      "configured_image": "943193395259.dkr.ecr.ap-southeast-1.amazonaws.com/algotrade-paper:v8-pg-spot-20260914",
+      "image_id": "sha256:1ce389d82dea5bd7a08b413ea650a0ea374210ef6df1f173ae80795fd79546f6",
+      "labels": {
+        "org.opencontainers.image.created": null,
+        "org.opencontainers.image.revision": null,
+        "org.opencontainers.image.source": null,
+        "org.opencontainers.image.version": null
+      },
+      "mounts": [
+        {
+          "destination": "/app/algotrade_adapter/safe_alpha.py",
+          "rw": true,
+          "source": "/var/lib/algotrade/safe_alpha.py",
+          "type": "bind"
+        },
+        {
+          "destination": "/app/runtime",
+          "rw": true,
+          "source": "/var/lib/algotrade/runtime",
+          "type": "bind"
+        },
+        {
+          "destination": "/app/state",
+          "rw": true,
+          "source": "/var/lib/algotrade/state",
+          "type": "bind"
+        },
+        {
+          "destination": "/app/logs",
+          "rw": true,
+          "source": "/var/log/algotrade",
+          "type": "bind"
+        },
+        {
+          "destination": "/app/alphas/master_unified/service.py",
+          "rw": true,
+          "source": "/var/lib/algotrade/service.py",
+          "type": "bind"
+        },
+        {
+          "destination": "/app/alphas/master_unified/genesis_engine.py",
+          "rw": true,
+          "source": "/var/lib/algotrade/genesis_engine.py",
+          "type": "bind"
+        },
+        {
+          "destination": "/app/alphas/master_unified/schedule.py",
+          "rw": true,
+          "source": "/var/lib/algotrade/schedule.py",
+          "type": "bind"
+        }
+      ],
+      "name": "algotrade-paper",
+      "ports": {},
+      "repo_digests": [
+        "943193395259.dkr.ecr.ap-southeast-1.amazonaws.com/algotrade-paper@sha256:d79e6a337705eb05c2ed1c20384cfeef12b9548b1ff94dd191b45c3e3dfbadb3"
+      ],
+      "restart_count": "0",
+      "started_at": "2026-09-24T00:00:20.813801949Z",
+      "state": "running / healthy"
+    },
+    {
+      "configured_image": "943193395259.dkr.ecr.ap-southeast-1.amazonaws.com/algotrade-paper@sha256:9b29731efefb19dff4424e68d69727f74362d4a204006cda5017bd70945a890d",
+      "image_id": "sha256:f9e562bbb092ccf247922eb244a7d8d5e7208aaf89cba7f3b284cfdd5779e2c3",
+      "labels": {
+        "org.opencontainers.image.created": null,
+        "org.opencontainers.image.revision": null,
+        "org.opencontainers.image.source": null,
+        "org.opencontainers.image.version": null
+      },
+      "mounts": [
+        {
+          "destination": "/data",
+          "rw": false,
+          "source": "/var/lib/algotrade/runtime",
+          "type": "bind"
+        },
+        {
+          "destination": "/app/dashboard/static/index.html",
+          "rw": false,
+          "source": "/var/lib/algotrade/dashboard-static/index.html",
+          "type": "bind"
+        },
+        {
+          "destination": "/app/logs",
+          "rw": true,
+          "source": "/var/lib/docker/volumes/d5450e870cb50237911ec882776895c2bb1dd4ff0b981bc5dceaa9d9fb9a11be/_data",
+          "type": "volume"
+        },
+        {
+          "destination": "/app/runtime",
+          "rw": true,
+          "source": "/var/lib/docker/volumes/1fea9cda385ce405034eb7d6be799d4b46552ea094e87c0484a702b6f35ddc61/_data",
+          "type": "volume"
+        },
+        {
+          "destination": "/app/state",
+          "rw": true,
+          "source": "/var/lib/docker/volumes/97b156145702ac11b2edd53adf06d24aca6cc75b20c5c52e20e5168e8fa7b4e0/_data",
+          "type": "volume"
+        }
+      ],
+      "name": "algotrade-dashboard",
+      "ports": {
+        "8080/tcp": [
+          {
+            "HostIp": "127.0.0.1",
+            "HostPort": "8080"
+          }
+        ]
+      },
+      "repo_digests": [
+        "943193395259.dkr.ecr.ap-southeast-1.amazonaws.com/algotrade-paper@sha256:9b29731efefb19dff4424e68d69727f74362d4a204006cda5017bd70945a890d"
+      ],
+      "restart_count": "0",
+      "started_at": "2026-09-10T06:58:43.344627723Z",
+      "state": "running / healthy"
+    }
+  ],
+  "git": {
+    "commit": null,
+    "work_tree": null
+  },
+  "health": {
+    "alpha": "GenesisSupervisor",
+    "basis_ready": true,
+    "basis_stale": false,
+    "configured_qty": 8,
+    "desired_qty": 0,
+    "feed_age_s": 47.4,
+    "fix_logged_on": true,
+    "healthy": true,
+    "index_symbol": "INDEX:VN30",
+    "last_error": null,
+    "mode": "alpha",
+    "next_calendar_target_qty": 0,
+    "next_decision_at": "2026-09-24T14:24:00+07:00",
+    "next_reasons": [],
+    "next_signal_day": "2026-09-25",
+    "order_gate": true,
+    "portfolio_age_s": 16.8,
+    "positions": {},
+    "reasons": [
+      "calendar_flat"
+    ],
+    "spot_feed_age_s": 112.0,
+    "spot_source": "kafka",
+    "status": "running",
+    "symbol": "HNXDS:VN30F2610",
+    "uptime_s": 10921.4,
+    "worker_alive": true
+  },
+  "host": {
+    "architecture": "x86_64",
+    "disk": null,
+    "docker_version": "25.0.16",
+    "hostname": "ip-172-31-41-27.ap-southeast-1.compute.internal",
+    "kernel": "Linux 6.18.41-94.142.amzn2023.x86_64 x86_64 GNU/Linux",
+    "os_release": {
+      "NAME": "Amazon Linux",
+      "PLATFORM_ID": "platform:al2023",
+      "VERSION_ID": "2023"
+    }
+  },
+  "host_files": [
+    {
+      "exists": true,
+      "mode": "0o755",
+      "path": "/usr/local/bin/algotrade-run",
+      "sha256": "9b2d63589211bcc8dec09621fb747ba768401c40728fbee8175f1b48e35c4ff6",
+      "size": 1151
+    },
+    {
+      "exists": true,
+      "mode": "0o755",
+      "path": "/usr/local/bin/algotrade-run-genesis-pg",
+      "sha256": "607a59fcbb29f097593c1a534bcbf24e6c97b84cb87cb18bc102530b36cf4bb5",
+      "size": 1251
+    },
+    {
+      "exists": true,
+      "mode": "0o755",
+      "path": "/usr/local/bin/algotrade-render-env",
+      "sha256": "82ddd573180a9cc34fa0d91681c4231ddbef98216c11c0b35d5b5303c9ac43a9",
+      "size": 814
+    },
+    {
+      "exists": true,
+      "mode": "0o644",
+      "path": "/etc/systemd/system/algotrade-paper.service",
+      "sha256": "4eef9d2ce3f42585f86e2b1bf696ec29299eba2ca048719e21a854b3b7fc87d7",
+      "size": 573
+    },
+    {
+      "exists": true,
+      "mode": "0o644",
+      "path": "/etc/systemd/system/algotrade-dashboard.service",
+      "sha256": "721a8089478bd6a803fec84954a8b6c6805f6a715c88fc7c0fd60f6589fe5e6b",
+      "size": 638
+    },
+    {
+      "exists": true,
+      "mode": "0o644",
+      "path": "/etc/systemd/system/algotrade-reentry-watchdog.service",
+      "sha256": "efc8c4d0c333fb1416ad8263cdfe1d04dd1cfa3ff8c49c99c37de9daaf009e41",
+      "size": 237
+    },
+    {
+      "exists": false,
+      "path": "/etc/systemd/system/algotrade-reentry-watchdog.timer"
+    },
+    {
+      "exists": false,
+      "path": "/usr/local/bin/algotrade-reentry-watchdog"
+    },
+    {
+      "exists": true,
+      "mode": "0o755",
+      "path": "/usr/local/bin/auto_reentry_watchdog.py",
+      "sha256": "45c313282315267ce2dcbcc743964889ea0111c42fae28d15a1dce77270c59fe",
+      "size": 5784
+    }
+  ],
+  "host_overrides": [
+    {
+      "exists": true,
+      "mode": "0o644",
+      "path": "/var/lib/algotrade/safe_alpha.py",
+      "sha256": "264defcad6ff15fc25581a56750daf2724d7de7cdba8aee639f262b432cf1527",
+      "size": 4580
+    },
+    {
+      "exists": true,
+      "mode": "0o644",
+      "path": "/var/lib/algotrade/service.py",
+      "sha256": "9d319046b4e26323e502693ab10a970e58cbcbb5445ec008c6dc13d84ebfee52",
+      "size": 64949
+    },
+    {
+      "exists": true,
+      "mode": "0o644",
+      "path": "/var/lib/algotrade/genesis_engine.py",
+      "sha256": "ceef7462f0333956c72be3da64ede7d89f926441ceffb4af4600e56ee19a54eb",
+      "size": 4608
+    },
+    {
+      "exists": true,
+      "mode": "0o644",
+      "path": "/var/lib/algotrade/schedule.py",
+      "sha256": "b37519d8a4a3d28cade9b20f057b0b951950251860a316af57ba7d2e605ce97f",
+      "size": 7189
+    }
+  ],
+  "related_units": [
+    "algotrade-dashboard.service",
+    "algotrade-paper.service",
+    "algotrade-reentry-watchdog.service"
+  ],
+  "schema_version": 1,
+  "services": [
+    {
+      "ActiveState": "active",
+      "DropInPaths": "/etc/systemd/system/algotrade-paper.service.d/10-hybrid-image.conf /etc/systemd/system/algotrade-paper.service.d/20-genesis-image.conf /etc/systemd/system/algotrade-paper.service.d/30-genesis-runner.conf /etc/systemd/system/algotrade-paper.service.d/40-pg-spot-image.conf",
+      "ExecMainStartTimestamp": "Thu 2026-09-24 00:00:18 UTC",
+      "ExecStart": "{ path=/usr/local/bin/algotrade-run-genesis-pg ; argv[]=/usr/local/bin/algotrade-run-genesis-pg ; ignore_errors=no ; start_time=[Thu 2026-09-24 00:00:18 UTC] ; stop_time=[n/a] ; pid=880621 ; code=(null) ; status=0/0 }",
+      "FragmentPath": "/etc/systemd/system/algotrade-paper.service",
+      "NRestarts": "1",
+      "SubState": "running",
+      "UnitFileState": "enabled",
+      "available": true,
+      "fragment": {
+        "exists": true,
+        "mode": "0o644",
+        "path": "/etc/systemd/system/algotrade-paper.service",
+        "sha256": "4eef9d2ce3f42585f86e2b1bf696ec29299eba2ca048719e21a854b3b7fc87d7",
+        "size": 573
+      },
+      "name": "algotrade-paper"
+    },
+    {
+      "ActiveState": "active",
+      "DropInPaths": "",
+      "ExecMainStartTimestamp": "Thu 2026-09-10 06:58:41 UTC",
+      "ExecStart": "{ path=/usr/local/bin/algotrade-dashboard-run ; argv[]=/usr/local/bin/algotrade-dashboard-run ; ignore_errors=no ; start_time=[n/a] ; stop_time=[n/a] ; pid=0 ; code=(null) ; status=0/0 }",
+      "FragmentPath": "/etc/systemd/system/algotrade-dashboard.service",
+      "NRestarts": "0",
+      "SubState": "running",
+      "UnitFileState": "enabled",
+      "available": true,
+      "fragment": {
+        "exists": true,
+        "mode": "0o644",
+        "path": "/etc/systemd/system/algotrade-dashboard.service",
+        "sha256": "721a8089478bd6a803fec84954a8b6c6805f6a715c88fc7c0fd60f6589fe5e6b",
+        "size": 638
+      },
+      "name": "algotrade-dashboard"
+    },
+    {
+      "ActiveState": "inactive",
+      "DropInPaths": "",
+      "ExecMainStartTimestamp": "",
+      "ExecStart": "{ path=/usr/bin/python3 ; argv[]=/usr/bin/python3 /usr/local/bin/auto_reentry_watchdog.py ; ignore_errors=no ; start_time=[n/a] ; stop_time=[n/a] ; pid=0 ; code=(null) ; status=0/0 }",
+      "FragmentPath": "/etc/systemd/system/algotrade-reentry-watchdog.service",
+      "NRestarts": "0",
+      "SubState": "dead",
+      "UnitFileState": "disabled",
+      "available": true,
+      "fragment": {
+        "exists": true,
+        "mode": "0o644",
+        "path": "/etc/systemd/system/algotrade-reentry-watchdog.service",
+        "sha256": "efc8c4d0c333fb1416ad8263cdfe1d04dd1cfa3ff8c49c99c37de9daaf009e41",
+        "size": 237
+      },
+      "name": "algotrade-reentry-watchdog"
+    }
+  ],
+  "source_manifest": [
+    {
+      "path": "algotrade_adapter/__init__.py",
+      "sha256": "cce02992207db04e6598387216fd9d29010da00980c0e0fb68c4b7a289bb2e22",
+      "size": 440
+    },
+    {
+      "path": "algotrade_adapter/account_snapshot.py",
+      "sha256": "f8eb14fbcd2cf3dce97a122afd215d5b6340b852272c5fb9b53137343a309fd9",
+      "size": 7614
+    },
+    {
+      "path": "algotrade_adapter/client.py",
+      "sha256": "0c1b581d710e4bbad90a679ce8aac99a9c3a6985761c6dcdcaf235d68b78b4f0",
+      "size": 5191
+    },
+    {
+      "path": "algotrade_adapter/market_data.py",
+      "sha256": "c569133e6afcd639758a1a3643f0a5b3af14824054fd92d70e6b57c953667990",
+      "size": 11316
+    },
+    {
+      "path": "algotrade_adapter/safe_alpha.py",
+      "sha256": "264defcad6ff15fc25581a56750daf2724d7de7cdba8aee639f262b432cf1527",
+      "size": 4580
+    },
+    {
+      "path": "alphas/calendar/__init__.py",
+      "sha256": "44c06819cbf4a4da97c86d9f97b0922761bfd27f4973bb6709949da6eef3c460",
+      "size": 291
+    },
+    {
+      "path": "alphas/calendar/schedule.py",
+      "sha256": "a6037a6d46c7cfa013bef9d948441edfd2d6694fd8f276bc6778f8bbeb3f0576",
+      "size": 7843
+    },
+    {
+      "path": "alphas/calendar/service.py",
+      "sha256": "bef9e62dd64c9bc3536950f2f5fcf22c71f8d0288fedf25a09d9d790fdb44590",
+      "size": 22475
+    },
+    {
+      "path": "alphas/master_unified/__init__.py",
+      "sha256": "9d07f76b8451f66f98c2029e0ec0fbc98c67904241603481cb94223652075116",
+      "size": 608
+    },
+    {
+      "path": "alphas/master_unified/genesis_engine.py",
+      "sha256": "ceef7462f0333956c72be3da64ede7d89f926441ceffb4af4600e56ee19a54eb",
+      "size": 4608
+    },
+    {
+      "path": "alphas/master_unified/hybrid_engine.py",
+      "sha256": "ba2a53b88019cd4fcb6e0e8c36e56822ac44941f25cc8d452ee93329ad186596",
+      "size": 11046
+    },
+    {
+      "path": "alphas/master_unified/schedule.py",
+      "sha256": "b37519d8a4a3d28cade9b20f057b0b951950251860a316af57ba7d2e605ce97f",
+      "size": 7189
+    },
+    {
+      "path": "alphas/master_unified/service.py",
+      "sha256": "9d319046b4e26323e502693ab10a970e58cbcbb5445ec008c6dc13d84ebfee52",
+      "size": 64949
+    },
+    {
+      "path": "scripts/container_entrypoint.py",
+      "sha256": "f03067c005e223e861791ba7938307f8d9d5c1bbc45c62e05628ca9c9bd10991",
+      "size": 3662
+    },
+    {
+      "path": "scripts/container_healthcheck.py",
+      "sha256": "a8c343a60342bf29296dc8fb250645ab21c65a2dfcf6eab056470c3c2754e6eb",
+      "size": 394
+    },
+    {
+      "path": "scripts/diagnose.py",
+      "sha256": "1bf1b53bc914807a7f26f61626158465148b85bfad2aaa190eabdb69b2ad7a0b",
+      "size": 1648
+    },
+    {
+      "path": "scripts/patch_quickfix_arm.py",
+      "sha256": "b340c044c8d5a46d110539e7d084c7da52142ea5bb355d140f2fa88e7d61a257",
+      "size": 1318
+    },
+    {
+      "path": "scripts/smoke_fix_login.py",
+      "sha256": "c2b51a88f975b2098a9e5c2a1cc3007c34845d50a2e66ddfdf90479299723186",
+      "size": 1069
+    },
+    {
+      "path": "scripts/smoke_kafka.py",
+      "sha256": "ee09b9ac17829d8bc67aa914c0a386ab007ba8d698c7fc75c1b645ab7c7c3664",
+      "size": 1723
+    },
+    {
+      "path": "dashboard/__init__.py",
+      "sha256": "4a24f8a6f079c1018b64970c0300e7f168b9db18f2ef64351cbc5b3a22baa70c",
+      "size": 47
+    },
+    {
+      "path": "dashboard/healthcheck.py",
+      "sha256": "04c927315d7ba89dc1b6246a30090ae3bcfe8ce57b677c4f0b1b49c34756fd16",
+      "size": 295
+    },
+    {
+      "path": "dashboard/server.py",
+      "sha256": "86f0ee176b54eb487fd9a01e9047b36e5e02d325e5c52e7a0bdfb46537732613",
+      "size": 3386
+    },
+    {
+      "path": "dashboard/static/index.html",
+      "sha256": "e80f5d63984f9eca25caa574461571b9b30021dafde480f0f73a7063d33dd58d",
+      "size": 15506
+    }
+  ],
+  "trees": {
+    "cron_names": [],
+    "opt_algotrade": [],
+    "var_lib_algotrade": [
+      {
+        "kind": "dir",
+        "mode": "0o755",
+        "path": "__pycache__",
+        "size": null
+      },
+      {
+        "kind": "file",
+        "mode": "0o644",
+        "path": "__pycache__/safe_alpha.cpython-39.pyc",
+        "size": 3929
+      },
+      {
+        "kind": "file",
+        "mode": "0o644",
+        "path": "__pycache__/service.cpython-39.pyc",
+        "size": 42163
+      },
+      {
+        "kind": "file",
+        "mode": "0o644",
+        "path": "buy_atc.py",
+        "size": 949
+      },
+      {
+        "kind": "file",
+        "mode": "0o644",
+        "path": "buy_atc2.py",
+        "size": 950
+      },
+      {
+        "kind": "file",
+        "mode": "0o644",
+        "path": "check_atc.py",
+        "size": 729
+      },
+      {
+        "kind": "file",
+        "mode": "0o644",
+        "path": "check_orders.py",
+        "size": 413
+      },
+      {
+        "kind": "file",
+        "mode": "0o644",
+        "path": "close_manual.py",
+        "size": 1724
+      },
+      {
+        "kind": "dir",
+        "mode": "0o755",
+        "path": "dashboard-static",
+        "size": null
+      },
+      {
+        "kind": "file",
+        "mode": "0o644",
+        "path": "dashboard-static/index.html",
+        "size": 16913
+      },
+      {
+        "kind": "file",
+        "mode": "0o644",
+        "path": "detail_orders.py",
+        "size": 205
+      },
+      {
+        "kind": "file",
+        "mode": "0o644",
+        "path": "genesis_engine.py",
+        "size": 4608
+      },
+      {
+        "kind": "file",
+        "mode": "0o644",
+        "path": "place_limits.py",
+        "size": 1100
+      },
+      {
+        "kind": "dir",
+        "mode": "0o755",
+        "path": "runtime",
+        "size": null
+      },
+      {
+        "kind": "file",
+        "mode": "0o644",
+        "path": "runtime/account.json",
+        "size": 6779
+      },
+      {
+        "kind": "file",
+        "mode": "0o644",
+        "path": "runtime/genesis_warmup_bars.json",
+        "size": 44960
+      },
+      {
+        "kind": "file",
+        "mode": "0o644",
+        "path": "runtime/genesis_warmup_bars.json.bak_<redacted-number>",
+        "size": 34165
+      },
+      {
+        "kind": "file",
+        "mode": "0o644",
+        "path": "runtime/health.json",
+        "size": 933
+      },
+      {
+        "kind": "file",
+        "mode": "0o644",
+        "path": "runtime/hybrid_gated_warmup_bars.json",
+        "size": 37721
+      },
+      {
+        "kind": "file",
+        "mode": "0o644",
+        "path": "runtime/hybrid_gated_warmup_bars.json.bak_<redacted-number>",
+        "size": 33022
+      },
+      {
+        "kind": "file",
+        "mode": "0o644",
+        "path": "runtime/orders.db",
+        "size": 32768
+      },
+      {
+        "kind": "file",
+        "mode": "0o644",
+        "path": "runtime/orders.db-shm",
+        "size": 32768
+      },
+      {
+        "kind": "file",
+        "mode": "0o644",
+        "path": "runtime/orders.db-wal",
+        "size": 0
+      },
+      {
+        "kind": "file",
+        "mode": "0o644",
+        "path": "runtime/warmup_bars.json",
+        "size": 37721
+      },
+      {
+        "kind": "file",
+        "mode": "0o644",
+        "path": "runtime/warmup_bars.json.bak_<redacted-number>",
+        "size": 31752
+      },
+      {
+        "kind": "file",
+        "mode": "0o644",
+        "path": "safe_alpha.py",
+        "size": 4580
+      },
+      {
+        "kind": "file",
+        "mode": "0o644",
+        "path": "schedule.py",
+        "size": 7189
+      },
+      {
+        "kind": "file",
+        "mode": "0o644",
+        "path": "service.py",
+        "size": 64949
+      },
+      {
+        "kind": "file",
+        "mode": "0o644",
+        "path": "service.py.bak.<redacted-number>",
+        "size": 64019
+      },
+      {
+        "kind": "dir",
+        "mode": "0o755",
+        "path": "state",
+        "size": null
+      },
+      {
+        "kind": "file",
+        "mode": "0o644",
+        "path": "state/calendar_HNXDS_VN30F2609.json",
+        "size": 387
+      },
+      {
+        "kind": "file",
+        "mode": "0o644",
+        "path": "state/genesis_HNXDS_VN30F2609.json",
+        "size": 972
+      },
+      {
+        "kind": "file",
+        "mode": "0o644",
+        "path": "state/genesis_HNXDS_VN30F2610.json",
+        "size": 976
+      },
+      {
+        "kind": "file",
+        "mode": "0o644",
+        "path": "state/hybrid_gated_HNXDS_VN30F2609.json",
+        "size": 1168
+      },
+      {
+        "kind": "file",
+        "mode": "0o644",
+        "path": "state/unified_HNXDS_VN30F2609.json",
+        "size": 158
+      },
+      {
+        "kind": "file",
+        "mode": "0o644",
+        "path": "tmp_watchdog_cmd.py",
+        "size": 749
+      }
+    ]
+  }
+}

@@ -1,0 +1,22 @@
+FROM 943193395259.dkr.ecr.ap-southeast-1.amazonaws.com/algotrade-paper@sha256:d79e6a337705eb05c2ed1c20384cfeef12b9548b1ff94dd191b45c3e3dfbadb3
+
+LABEL org.opencontainers.image.revision="recovered-ec2-plus-observability-20260924" \
+      org.opencontainers.image.version="ec2-baseline-observable-20260924-015c4e1b1be0" \
+      io.algotrade.source-sha256="65da56ab5d76865677908e8e24ff4660d76dfe9ac126735a5894a9b20a1908f3"
+
+# These four files are the exact Python overrides imported by the live EC2
+# runtime at capture time. Keeping them separate from the observability files
+# makes the strategy-preservation boundary reviewable.
+COPY --chown=10001:10001 production-source/app/algotrade_adapter/safe_alpha.py /app/algotrade_adapter/safe_alpha.py
+COPY --chown=10001:10001 production-source/app/alphas/master_unified/service.py /app/alphas/master_unified/service.py
+COPY --chown=10001:10001 production-source/app/alphas/master_unified/genesis_engine.py /app/alphas/master_unified/genesis_engine.py
+COPY --chown=10001:10001 production-source/app/alphas/master_unified/schedule.py /app/alphas/master_unified/schedule.py
+
+# Read-only provenance and activity recording. These files do not call the
+# broker or change strategy decisions.
+COPY --chown=10001:10001 observable-overrides/algotrade_adapter/runtime_observability.py /app/algotrade_adapter/runtime_observability.py
+COPY --chown=10001:10001 observable-overrides/scripts/container_entrypoint.py /app/scripts/container_entrypoint.py
+COPY --chown=10001:10001 observable-overrides/scripts/verify_flat_account.py /app/scripts/verify_flat_account.py
+COPY --chown=10001:10001 observable-overrides/dashboard/server.py /app/dashboard/server.py
+COPY --chown=10001:10001 observable-overrides/dashboard/static/index.html /app/dashboard/static/index.html
+COPY --chown=10001:10001 observable-release-manifest.json /app/release.json
