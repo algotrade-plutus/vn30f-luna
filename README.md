@@ -4,7 +4,7 @@
 
 ## Abstract
 
-Calibrum evaluates a quantitative directional strategy on the Vietnam VN30 index futures front-month contract (`VN30F1M`) using 30-minute bars. The strategy combines three uncorrelated alpha sleeves: an $L_2$-regularized linear model on intraday technical deviations (Ridge H2), a basis spread mean-reversion engine (Shinji), and institutional calendar anomaly rules (turn-of-month, weekday, and pre-holiday). Orders, fills, statutory charges (HNX, VSDC, PIT), variation margin, and SSI margin requirements are causally simulated via `plutus.market.session.ExchangeSession`.
+Calibrum evaluates a quantitative directional strategy on the Vietnam VN30 index futures front-month contract (`VN30F1M`) using 30-minute bars. The strategy combines three uncorrelated alpha sleeves: an $L\_2$-regularized linear model on intraday technical deviations (Ridge H2), a basis spread mean-reversion engine (Shinji), and institutional calendar anomaly rules (turn-of-month, weekday, and pre-holiday). Orders, fills, statutory charges (HNX, VSDC, PIT), variation margin, and SSI margin requirements are causally simulated via `plutus.market.session.ExchangeSession`.
 
 The pipeline was developed and evaluated end-to-end on tick-aggregated PostgreSQL data (`algotradeDB`) covering 2020 to 2026, following the [9-step Development Process](https://www.algotrade.vn/knowledge/9-step-process/the-9-step) and the [Plutus Reproducibility Standard](https://github.com/algotrade-plutus/plutus-guideline). On the in-sample period (2020–2022), it achieves a net profit of **+2,056.5 points**, a **Sharpe ratio of 3.22**, and a per-trade margin of **21.44 bps** after statutory costs. On the out-of-sample period (2023–2024), it achieves **+851.9 points** with a **Sharpe ratio of 2.51** and **11.93 bps** margin. Every reported number is reproducible in an isolated Docker container via `plutus-verify` against the committed groundtruth baseline (see [Implementation & Reproducibility](#implementation--reproducibility)).
 
@@ -12,7 +12,7 @@ The pipeline was developed and evaluated end-to-end on tick-aggregated PostgreSQ
 
 Algorithmic trading on the Vietnamese derivatives market (`VN30F`) is characterized by high leverage, retail-driven noise, and sudden sentiment swings. Single-style trading strategies (such as pure trend-following or pure mean-reversion) typically suffer severe regime-shift failures: trend algorithms incur heavy whipsaw losses during range-bound chop, while mean-reversion systems risk catastrophic drawdowns during strong fundamental trends.
 
-Calibrum addresses this fragility through a **Multi-Engine Ensemble**. By coupling three structurally uncorrelated engines—intraday momentum, cash-futures basis convergence, and calendar liquidity flows—and unifying them under a strict Majority Voting and Netting mechanism, the system achieves natural self-hedging: opposing signals cancel out into a flat position ($0$), protecting capital during conflicting market conditions while taking high-conviction exposure during market consensus.
+Calibrum addresses this fragility through a **Multi-Engine Ensemble**. By coupling three structurally uncorrelated engines—intraday momentum, cash-futures basis convergence, and calendar liquidity flows—and unifying them under a strict Majority Voting and Netting mechanism, the system achieves natural self-hedging: opposing signals cancel out into a flat position (0), protecting capital during conflicting market conditions while taking high-conviction exposure during market consensus.
 
 ## 1. Forming Algorithm Hypothesis
 
@@ -21,18 +21,18 @@ The strategy synthesizes three falsifiable quantitative hypotheses:
 ### H1 — Controlled Intraday Momentum (Ridge H2)
 Intraday price displacement that is synchronized across the session open, short-term moving average, and immediate candle body tends to persist over a 1-to-4 hour horizon (2 to 8 bars). However, this momentum experiences a mean-reverting drag as price stretches excessively away from the session Volume-Weighted Average Price (VWAP).
 
-The composite momentum score is modelled via Ridge regression ($L_2$ penalty) on 5 volatility-normalized causal features ($\text{ATR}_{14}$):
+The composite momentum score is modelled via Ridge regression ($L\_2$ penalty) on 5 volatility-normalized causal features ($\text{ATR}\_{14}$):
 
 $$\text{Score}_t = \beta_0 + \sum_{j=1}^5 \beta_j \tilde{F}_{j,t}$$
 
 where:
-* $f_1 = \frac{\text{Close}_t - \text{Open}_{09:00}}{\text{ATR}_{14}}$ (session displacement from open, $\beta_1 = +0.1472$)
-* $f_2 = \frac{\text{Close}_t - \text{SMA}_4(\text{Close})}{\text{ATR}_{14}}$ (2-hour trend distance, $\beta_2 = +0.0464$)
-* $f_3 = \frac{\text{Close}_t - \text{Open}_t}{\text{ATR}_{14}}$ (immediate candle impulse, $\beta_3 = +0.0423$)
-* $f_4 = \frac{\sum \text{Up}^2 - \sum \text{Down}^2}{\sum \text{Up}^2 + \sum \text{Down}^2}$ (4-bar directional volume asymmetry, $\beta_4 = +0.0190$)
-* $f_5 = \frac{\text{Close}_t - \text{VWAP}_t}{\text{ATR}_{14}}$ (VWAP mean-reverting anchor, $\beta_5 = -0.0396$)
+* $f\_1 = \frac{\text{Close}\_t - \text{Open}\_{09:00}}{\text{ATR}\_{14}}$ (session displacement from open, $\beta\_1 = +0.1472$)
+* $f\_2 = \frac{\text{Close}\_t - \text{SMA}\_4(\text{Close})}{\text{ATR}\_{14}}$ (2-hour trend distance, $\beta\_2 = +0.0464$)
+* $f\_3 = \frac{\text{Close}\_t - \text{Open}\_t}{\text{ATR}\_{14}}$ (immediate candle impulse, $\beta\_3 = +0.0423$)
+* $f\_4 = \frac{\sum \text{Up}^2 - \sum \text{Down}^2}{\sum \text{Up}^2 + \sum \text{Down}^2}$ (4-bar directional volume asymmetry, $\beta\_4 = +0.0190$)
+* $f\_5 = \frac{\text{Close}\_t - \text{VWAP}\_t}{\text{ATR}\_{14}}$ (VWAP mean-reverting anchor, $\beta\_5 = -0.0396$)
 
-Features are normalized using an in-sample Robust Scaler ($\text{Center}_j, \text{Scale}_j$) with outlier clipping at $[-8.0, +8.0]$.
+Features are normalized using an in-sample Robust Scaler ($\text{Center}\_j, \text{Scale}\_j$) with outlier clipping at $[-8.0, +8.0]$.
 
 ### H2 — Futures-Spot Basis Mean-Reversion (Shinji)
 By regulatory design, the front-month futures price must converge to the spot VN30 index at contract settlement. Extreme deviations in the basis spread:
@@ -41,7 +41,7 @@ $$\text{Basis}_t = \text{Futures}_t - \text{Spot}_t$$
 
 $$Z_t = \frac{\text{Basis}_t - \mu_{40}(\text{Basis})}{\sigma_{40}(\text{Basis})}$$
 
-reflect short-term overreaction. When $|Z_t| \ge 1.5$, mean-reversion trades towards parity ($Z_t \to 0$) offer asymmetric risk-reward.
+reflect short-term overreaction. When $|Z\_t| \ge 1.5$, mean-reversion trades towards parity ($Z\_t \to 0$) offer asymmetric risk-reward.
 
 ### H3 — Institutional Calendar Liquidity Anomalies (Calendar)
 Systematic institutional rebalancing produces statistically positive return profiles during the first two actual trading days of each month (SOM2), mid-week sessions (Tuesday/Wednesday), and the session preceding major public holidays. Conversely, regular Mondays with non-positive opening gaps ($\le 0$) exhibit downward drift.
@@ -50,7 +50,7 @@ Systematic institutional rebalancing produces statistically positive return prof
 
 - **Source:** PostgreSQL `algotradeDB` (read-only production tick & book tables: `quote.matched`, `quote.matchedvolume`, `quote.futurecontractcode`, `quote.reference`, `quote.ceil`, `quote.floor`).
 - **Period:** In-sample: `2020-01-02` to `2022-12-30` (7,509 bars). Out-of-sample: `2023-01-01` to `2024-12-19` (5,055 bars). Forward: `2025-01-01` to `2026-10-01`.
-- **Fees:** Full statutory charges: HNX exchange fee (2,700 VND/contract), VSDC clearing fee (2,550 VND/contract), PIT tax (0.1%), SSI margin profile (initial margin requirement, daily variation margin mark-to-market, 90% margin call threshold). Backtest assumes conservative $0.4$ index points per round-turn.
+- **Fees:** Full statutory charges: HNX exchange fee (2,700 VND/contract), VSDC clearing fee (2,550 VND/contract), PIT tax (0.1%), SSI margin profile (initial margin requirement, daily variation margin mark-to-market, 90% margin call threshold). Backtest assumes conservative 0.4 index points per round-turn.
 
 ### Obtaining the data
 
@@ -65,27 +65,29 @@ Database credentials are provided via `.env` (see [Environment setup](#environme
 
 ## 3. Forming Set of Rules
 
-The strategy derives a net integer target position $\text{Target}_t \in \{-1, 0, +1\}$ at the close of bar $t$, executed at the open of bar $t+1$:
+The strategy derives a net integer target position $\text{Target}\_t \in \{-1, 0, +1\}$ at the close of bar $t$, executed at the open of bar $t+1$:
 
 - **Ridge H2 Rules:**
-  - Enter Long ($+1$) when $\text{Score}_t \ge +0.18$.
-  - Enter Short ($-1$) when $\text{Score}_t \le -0.18$.
-  - Flat ($0$) when $-0.18 < \text{Score}_t < +0.18$.
-  - Stop-loss: $10.0$ index points. Minimum holding: 2 bars; maximum holding: 8 bars ($4$ hours).
+  - Enter Long ($+1$) when $\text{Score}\_t \ge +0.18$.
+  - Enter Short ($-1$) when $\text{Score}\_t \le -0.18$.
+  - Flat (0) when $-0.18 < \text{Score}\_t < +0.18$.
+  - Stop-loss: 10.0 index points. Minimum holding: 2 bars; maximum holding: 8 bars (4 hours).
 - **Shinji Rules:**
-  - Enter Long ($+1$) when $Z_t \le -1.5$.
-  - Enter Short ($-1$) when $Z_t \ge +1.5$.
-  - Exit to Flat ($0$) when $Z_t$ crosses $0.0$. Stop-loss: $14.0$ points. Forced flat on contract expiry Thursdays.
+  - Enter Long ($+1$) when $Z\_t \le -1.5$.
+  - Enter Short ($-1$) when $Z\_t \ge +1.5$.
+  - Exit to Flat (0) when $Z\_t$ crosses 0.0. Stop-loss: 14.0 points. Forced flat on contract expiry Thursdays.
 - **Calendar Rules:**
   - Long ($+1$) on SOM2, Tuesday, Wednesday, or pre-holiday sessions.
   - Short ($-1$) on regular Mondays if opening gap $\le 0$.
-  - Exit at session close ($14\text{h}30$).
+  - Exit at session close (14h30).
 - **Ensemble Voting & ATC Rule:**
   The combined target is determined by majority vote:
 
-  $$\text{Target}_t = \operatorname{sign}\Big( 1.0 \cdot \text{pos}_{\text{Ridge}} + 1.0 \cdot \text{pos}_{\text{Shinji}} + 1.0 \cdot \text{pos}_{\text{Calendar}} \Big)$$
+  ```math
+  \text{Target}_t = \operatorname{sign}\Big( 1.0 \cdot \text{pos}_{\text{Ridge}} + 1.0 \cdot \text{pos}_{\text{Shinji}} + 1.0 \cdot \text{pos}_{\text{Calendar}} \Big)
+  ```
 
-  At $14\text{h}30$ (ATC auction), position is frozen to the $14\text{h}00$ state ($\text{pos}_{14:30} = \text{pos}_{14:00}$) to prevent non-executable auction flips and guarantee zero future leaks.
+  At 14h30 (ATC auction), position is frozen to the 14h00 state ($\text{pos}\_{14:30} = \text{pos}\_{14:00}$) to prevent non-executable auction flips and guarantee zero future leaks.
 - **Cadence:** 30-minute regular clocks (`09:00`, `09:30`, `10:00`, `10:30`, `11:00`, `13:00`, `13:30`, `14:00`). Signals derived from bar $T$ submit orders at bar $T+1$.
 - **Costs:** Modelled soft-fill execution with full exchange charges.
 
@@ -201,9 +203,9 @@ make calibrum-forward
 | **Full Life-Cycle** | 2017 – 10/2026 | **+5,002.1 pts** | **2.68** | **16.02** | 1,400 | 103.3 pts |
 
 ### Out-of-sample Conclusions
-* **Sharpe Stability:** The strategy retains a Sharpe ratio of $2.51$ in OOS and $2.89$ in Forward, with no sign of post-discovery decay.
-* **Positive Margin:** Per-trade margin remains comfortably above the $10\text{ bps}$ hurdle rate across all non-overlapping windows.
-* **Capacity & Margin Safety:** Peak margin utilisation under the SSI margin model remained below $65\%$ throughout the 2022 market downturn, with zero margin calls triggered.
+* **Sharpe Stability:** The strategy retains a Sharpe ratio of 2.51 in OOS and 2.89 in Forward, with no sign of post-discovery decay.
+* **Positive Margin:** Per-trade margin remains comfortably above the 10 bps hurdle rate across all non-overlapping windows.
+* **Capacity & Margin Safety:** Peak margin utilisation under the SSI margin model remained below 65% throughout the 2022 market downturn, with zero margin calls triggered.
 
 ## Paper Trading (Step 7)
 
