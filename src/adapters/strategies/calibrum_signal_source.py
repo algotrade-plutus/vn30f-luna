@@ -242,23 +242,22 @@ def _ridge_with_roll_guard(
     return guarded
 
 
-def generate_calibrum_targets(
+def generate_calibrum_position_stream(
     futures: pd.DataFrame,
     spot: pd.DataFrame,
     package_dir: Path | str,
     *,
-    quantity: int = 1,
+    parameter_overrides: dict[str, Any] | None = None,
     use_shinji: bool = True,
     shinji_basis_price: str = "raw",
     shinji_roll_guard: bool = False,
     ridge_roll_guard: bool = False,
-) -> CalibrumTargets:
-    """Generate frozen Calibrum targets for a raw-roll DB diagnostic replay.
+) -> tuple[pd.DataFrame, dict[str, Any]]:
+    """Generate the unshifted Calibrum position stream and audit evidence.
 
-    The original package documents Shinji as an *adjusted*-futures/spot sleeve.
-    ``PostgresResearchSource`` supplies raw nearest-expiry contracts, so this
-    routine intentionally exposes that mismatch in every result rather than
-    treating it as an exact native or adjusted-continuous replay.
+    The returned frame contains ``Datetime``, ``Close`` and ``Position``.
+    ``Position`` is the signal known at each bar close. Execution lag is
+    applied by the local lab engine or by ``pre_shift_positions`` for Plutus.
     """
 
     package = Path(package_dir).resolve()
@@ -272,9 +271,19 @@ def generate_calibrum_targets(
     config = _load_json(config_path)
     if config.get("class_name") != "CalibrumAlpha":
         raise ValueError("Unexpected Calibrum class_name")
-    parameters = config.get("parameters")
-    if not isinstance(parameters, dict):
+    base_parameters = config.get("parameters")
+    if not isinstance(base_parameters, dict):
         raise ValueError("Calibrum config requires an object at parameters")
+
+    parameters = dict(base_parameters)
+    overrides = dict(parameter_overrides or {})
+    if "model_file" in overrides:
+        raise ValueError("model_file cannot be overridden")
+    unknown_overrides = sorted(set(overrides) - set(parameters))
+    if unknown_overrides:
+        raise ValueError(f"Unknown Calibrum parameter overrides: {unknown_overrides}")
+    parameters.update(overrides)
+
     if shinji_basis_price not in {"raw", "roll_adjusted"}:
         raise ValueError("shinji_basis_price must be 'raw' or 'roll_adjusted'")
     configured_model = str(parameters.get("model_file", _MODEL_NAME))
@@ -283,10 +292,14 @@ def generate_calibrum_targets(
             f"Calibrum config model_file must be {_MODEL_NAME!r}, got {configured_model!r}"
         )
 
+    futures = futures.copy()
+    if "Contract" not in futures.columns:
+        futures["Contract"] = "VN30F1M"
+
     frozen = _load_frozen_module(package)
     model = frozen._load_model(model_path)
-    clean_futures = frozen._clean_frame(_FrameFeed(futures), "DB VN30F1M/30m")
-    clean_spot = frozen._clean_frame(_FrameFeed(spot), "DB VN30/30m")
+    clean_futures = frozen._clean_frame(_FrameFeed(futures), "VN30F1M/30m")
+    clean_spot = frozen._clean_frame(_FrameFeed(spot), "VN30/30m")
     ridge = (
         _ridge_with_roll_guard(frozen, clean_futures, parameters, model)
         if ridge_roll_guard
@@ -297,7 +310,7 @@ def generate_calibrum_targets(
     if shinji_basis_price == "roll_adjusted":
         shinji_futures, adjustments = roll_adjust_front_month(futures)
         shinji_futures = frozen._clean_frame(
-            _FrameFeed(shinji_futures), "DB roll-adjusted VN30F1M/30m"
+            _FrameFeed(shinji_futures), "roll-adjusted VN30F1M/30m"
         )
     if use_shinji:
         shinji = (
@@ -323,9 +336,9 @@ def generate_calibrum_targets(
     if not np.isin(raw_position, (-1, 0, 1)).all():
         raise RuntimeError("Calibrum generated an invalid position")
 
-    raw = clean_futures[["Datetime", "Close"]].copy()
-    raw["Position"] = raw_position
-    targets = pre_shift_positions(raw, quantity=quantity)
+    stream = clean_futures[["Datetime", "Close"]].copy()
+    stream["Position"] = raw_position
+
     actual_hashes = {
         "source": _sha256(source_path),
         "config": _sha256(config_path),
@@ -351,10 +364,11 @@ def generate_calibrum_targets(
         ),
         "source_mode_note": (
             "Calibrum documents an adjusted-futures/spot Shinji sleeve, but the "
-            "DB feed is raw VN30F1M contracts. This run is not native-parity evidence."
+            "research candle feed is a raw/continuous front-month series. This run "
+            "is not native-parity evidence."
             if shinji_basis_price == "raw"
             else "Shinji alone receives a project-defined roll-adjusted continuous "
-            "future; Ridge H2, Calendar, and execution retain raw DB bars. This is "
+            "future; Ridge H2, Calendar, and execution retain raw candles. This is "
             "not verified native-parity evidence."
         ),
         "raw_contract_rolls": rolls,
@@ -364,18 +378,17 @@ def generate_calibrum_targets(
         "roll_adjustment_note": (
             "At each observed contract transition, the first new-contract open is "
             "additively shifted to the prior raw-contract close. Ridge H2 and Calendar "
-            "continue to receive raw DB bars. This is a project-defined sensitivity "
+            "continue to receive raw bars. This is a project-defined sensitivity "
             "series, not a verified platform adjusted series."
             if shinji_basis_price == "roll_adjusted"
             else None
         ),
         "causality": (
-            "Position derived from completed bar T is submitted at the next available "
-            "bar, including across the lunch break and overnight boundary."
+            "Position is the signal known at each completed bar close. Execution "
+            "lag is applied by the consumer, e.g. lab engine shift-by-one-bar or "
+            "pre_shift_positions for Plutus."
         ),
         "raw_position_counts": dict(sorted(Counter(map(int, raw_position)).items())),
-        "executable_target_counts": dict(sorted(Counter(targets.values()).items())),
-        "quantity": quantity,
         "sleeves": {
             "ridge_h2": True,
             "ridge_roll_guard": ridge_roll_guard,
@@ -398,6 +411,43 @@ def generate_calibrum_targets(
             else None
         ),
     }
+    if overrides:
+        diagnostics["parameter_overrides"] = overrides
+    return stream, diagnostics
+
+
+def generate_calibrum_targets(
+    futures: pd.DataFrame,
+    spot: pd.DataFrame,
+    package_dir: Path | str,
+    *,
+    quantity: int = 1,
+    use_shinji: bool = True,
+    shinji_basis_price: str = "raw",
+    shinji_roll_guard: bool = False,
+    ridge_roll_guard: bool = False,
+) -> CalibrumTargets:
+    """Generate frozen Calibrum targets for a raw-roll DB/Plutus replay.
+
+    The original package documents Shinji as an *adjusted*-futures/spot sleeve.
+    Raw front-month candles therefore remain a diagnostic replay, and the
+    diagnostics keep that caveat visible.
+    """
+
+    stream, diagnostics = generate_calibrum_position_stream(
+        futures,
+        spot,
+        package_dir,
+        use_shinji=use_shinji,
+        shinji_basis_price=shinji_basis_price,
+        shinji_roll_guard=shinji_roll_guard,
+        ridge_roll_guard=ridge_roll_guard,
+    )
+    targets = pre_shift_positions(stream, quantity=quantity)
+    diagnostics["executable_target_counts"] = dict(
+        sorted(Counter(targets.values()).items())
+    )
+    diagnostics["quantity"] = quantity
     return CalibrumTargets(targets=targets, diagnostics=diagnostics)
 
 

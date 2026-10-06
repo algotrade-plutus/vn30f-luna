@@ -43,3 +43,20 @@ papertrade-check:
 
 papertrade-dashboard:
 	./papertrade/scripts/open_dashboard.sh
+
+.PHONY: fetch-data step4 step5 step6 plutus-report
+
+fetch-data:
+	$(UV) run python scripts/fetch_dnse_candles.py
+
+step4:
+	$(UV) run python scripts/run_step4_insample.py
+
+step5:
+	$(UV) run python scripts/run_step5_optimize.py
+
+step6:
+	$(UV) run python scripts/run_step6_oos.py
+
+plutus-report:
+	$(UV) run python scripts/generate_plutus_report.py
