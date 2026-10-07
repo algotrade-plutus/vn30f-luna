@@ -23,6 +23,7 @@ from lab_common import (  # noqa: E402
     resolve_path,
     run_lab_backtest,
     safe_ratio,
+    save_lab_plots,
     write_json_report,
 )
 
@@ -125,6 +126,7 @@ def main() -> int:
         extra={"comparison_with_insample_lab": comparison},
     )
     report_path = write_json_report(args.report, payload)
+    figure_paths = save_lab_plots(result, "reports/figures/step6_oos_lab", title="Step 6: Out-of-sample lab backtest")
 
     print("STEP 6 - OUT-OF-SAMPLE LAB BACKTEST")
     print(f"Data source: {args.source}")
@@ -154,6 +156,8 @@ def main() -> int:
         print("Step 4 lab report not found; run scripts/run_step4_insample.py first for retention comparison.")
 
     print(f"Report: {report_path}")
+    for figure_path in figure_paths:
+        print(f"Figure: {figure_path}")
     return 0
 
 

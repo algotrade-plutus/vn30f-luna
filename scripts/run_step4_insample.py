@@ -19,6 +19,7 @@ from lab_common import (  # noqa: E402
     load_research_frames,
     parse_window,
     run_lab_backtest,
+    save_lab_plots,
     write_json_report,
 )
 
@@ -67,12 +68,15 @@ def main() -> int:
         config=config,
     )
     report_path = write_json_report(args.report, payload)
+    figure_paths = save_lab_plots(result, "reports/figures/step4_insample_lab", title="Step 4: In-sample lab backtest")
 
     print("STEP 4 - IN-SAMPLE LAB BACKTEST")
     print(f"Data source: {args.source}")
     print(f"Requested window: {start.isoformat()} -> {end.isoformat()}")
     print(format_metrics(result.metrics))
     print(f"Report: {report_path}")
+    for figure_path in figure_paths:
+        print(f"Figure: {figure_path}")
     return 0
 
 

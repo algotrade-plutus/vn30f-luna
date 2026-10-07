@@ -65,6 +65,7 @@ __all__ = [
     "resolve_path",
     "run_lab_backtest",
     "safe_ratio",
+    "save_lab_plots",
     "selected_metrics",
     "summarize_values",
     "write_json_report",
@@ -377,3 +378,25 @@ def summarize_values(values: Any) -> dict[str, float] | None:
         "mean": sum(numeric_values) / len(numeric_values),
         "spread": max(numeric_values) - min(numeric_values),
     }
+
+def save_lab_plots(result: Any, output_stem: str | Path, title: str = "") -> list[Path]:
+    """Render the built-in lab plots as simple PNGs and return their paths."""
+    import matplotlib
+
+    matplotlib.use("Agg")
+
+    from src.lab.backtest.plotting import plot_daily_profit, plot_pnl
+
+    stem = resolve_path(output_stem)
+    stem.parent.mkdir(parents=True, exist_ok=True)
+
+    outputs: list[Path] = []
+    for name, figure in (
+        ("equity", plot_pnl(result, title=title)),
+        ("daily_profit", plot_daily_profit(result, title=title)),
+    ):
+        destination = stem.with_name(f"{stem.name}_{name}.png")
+        figure.savefig(destination, dpi=180, bbox_inches="tight")
+        outputs.append(destination)
+
+    return outputs
