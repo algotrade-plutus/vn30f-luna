@@ -301,6 +301,23 @@ make plutus-report
 
 This reads available Plutus JSON reports under `reports/` and writes `docs/PLUTUS_BACKTEST_REPORT.md`. The report is an execution-level supplementary view in VND with statutory charges and margin; it is separate from the point-based headline results.
 
+### Methodology Comparison: Lab Engine vs. Plutus Engine
+
+| Dimension | Local Lab Engine (`src/lab/backtest/`) | Plutus Engine (`plutus.market` / `ExchangeSession`) |
+| :--- | :--- | :--- |
+| **Objective** | Fast alpha hypothesis verification & signal calibration. | Institutional-grade execution parity and margin solvency check. |
+| **PnL & Net Measure** | **Index Points**: $\text{GrossGain} - \text{FeeCost}$ | **VND Capital**: $\text{Final Capital} - \text{Initial Capital}$ |
+| **Fee Model** | Simplified point deduction: **0.8 pts/round-trip** (0.4 pts/unit change). | Full statutory charges: HNX (2,700₫), VSDC (2,550₫), PIT tax (0.1%), exchange slip. |
+| **Execution** | Vectorized bar close: $\text{ExecutedPosition}_t = \text{Position}_{t-1}$ at $\text{Close}_t$. | L2/L3 order book matching, trade-through validation, queue priority, ATC auction. |
+| **Sharpe Basis** | **Point-based distribution**: $\frac{\operatorname{Mean}(\Delta P_{\text{daily}})}{\operatorname{Std}(\Delta P_{\text{daily}})} \times \sqrt{252}$ | **Percentage equity returns**: $\frac{\operatorname{Mean}(R_t) - R_f / 250}{\operatorname{Std}(R_t)} \times \sqrt{250}$ |
+| **Capital Dependency** | Capital-invariant (evaluates the strategy's edge in points). | Capital-sensitive (depends on account size, e.g. 100M VND, leverage, and margin utilisation). |
+| **Risk-Free Rate ($R_f$)** | $R_f = 0$ | $R_f = 3\%$ per annum (Vietnam benchmark). |
+| **Trading Days / Year** | 252 (Western convention). | 250 (median Vietnamese market trading sessions). |
+
+#### Why Sharpe & Net Differ Between Engines:
+1. **Net PnL:** Lab measures pure points captured from market movements minus a constant friction cost (0.8 pts). Plutus translates points to VND ($100,000 \text{ VND/point}$), models real fills against the historical order book, and deducts actual exchange fees, clearing fees, and statutory transfer taxes.
+2. **Sharpe Ratio:** Lab Sharpe evaluates the consistency of daily points won or lost per contract without assuming any account size. Plutus Sharpe evaluates percentage returns on invested cash, accounting for leverage, margin equity volatility, and cash yield over the risk-free rate ($R_f = 3\%$).
+
 ### Visual Execution Plots (Plutus Engine)
 
 #### 1. In-Sample Period (2021-01-15 → 2022-12-30)
