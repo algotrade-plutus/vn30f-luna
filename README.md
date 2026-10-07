@@ -270,24 +270,28 @@ Notes:
 ### Visual Diagnostic Plots (Lab Engine)
 
 #### 1. In-Sample Period (2021-01-15 → 2022-12-30)
-| Equity Curve | Daily Cumulative Profit |
-| :---: | :---: |
-| ![In-Sample Equity](image/README/is_lab_equity.png) | ![In-Sample Daily Profit](image/README/is_lab_daily_profit.png) |
+
+![In-Sample Equity](image/README/is_lab_equity.png)
+
+![In-Sample Daily Profit](image/README/is_lab_daily_profit.png)
 
 #### 2. Out-of-Sample Period (2023-01-01 → 2024-12-19)
-| Equity Curve | Daily Cumulative Profit |
-| :---: | :---: |
-| ![OOS Equity](image/README/oos_lab_equity.png) | ![OOS Daily Profit](image/README/oos_lab_daily_profit.png) |
+
+![OOS Equity](image/README/oos_lab_equity.png)
+
+![OOS Daily Profit](image/README/oos_lab_daily_profit.png)
 
 #### 3. Forward Walk Period (2025-01-01 → 2026-10-01)
-| Equity Curve | Daily Cumulative Profit |
-| :---: | :---: |
-| ![Forward Equity](image/README/forward_lab_equity.png) | ![Forward Daily Profit](image/README/forward_lab_daily_profit.png) |
+
+![Forward Equity](image/README/forward_lab_equity.png)
+
+![Forward Daily Profit](image/README/forward_lab_daily_profit.png)
 
 #### 4. Full Life-Cycle Period (2021-01-15 → 2026-10-01)
-| Equity Curve | Daily Cumulative Profit |
-| :---: | :---: |
-| ![Full Life-Cycle Equity](image/README/full_lab_equity.png) | ![Full Life-Cycle Daily Profit](image/README/full_lab_daily_profit.png) |
+
+![Full Life-Cycle Equity](image/README/full_lab_equity.png)
+
+![Full Life-Cycle Daily Profit](image/README/full_lab_daily_profit.png)
 
 ## Plutus Execution Report
 
@@ -296,6 +300,32 @@ make plutus-report
 ```
 
 This reads available Plutus JSON reports under `reports/` and writes `docs/PLUTUS_BACKTEST_REPORT.md`. The report is an execution-level supplementary view in VND with statutory charges and margin; it is separate from the point-based headline results.
+
+### Visual Execution Plots (Plutus Engine)
+
+#### 1. In-Sample Period (2021-01-15 → 2022-12-30)
+
+![Plutus In-Sample Equity](image/README/is_plutus_equity.png)
+
+![Plutus In-Sample Daily Profit](image/README/is_plutus_daily_profit.png)
+
+#### 2. Out-of-Sample Period (2023-01-01 → 2024-12-31)
+
+![Plutus OOS Equity](image/README/oos_plutus_equity.png)
+
+![Plutus OOS Daily Profit](image/README/oos_plutus_daily_profit.png)
+
+#### 3. Forward Walk Period (2025-01-01 → 2026-10-01)
+
+![Plutus Forward Equity](image/README/forward_plutus_equity.png)
+
+![Plutus Forward Daily Profit](image/README/forward_plutus_daily_profit.png)
+
+#### 4. Full Life-Cycle Period (2021-01-15 → 2026-10-01)
+
+![Plutus Full Life-Cycle Equity](image/README/full_plutus_equity.png)
+
+![Plutus Full Life-Cycle Daily Profit](image/README/full_plutus_daily_profit.png)
 
 ## Paper Trading (Step 7)
 
