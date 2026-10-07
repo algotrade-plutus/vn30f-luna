@@ -98,9 +98,9 @@ The strategy derives a net integer target position $\text{Target}\_t \in \{-1, 0
 - **Ensemble Voting & ATC Rule:**
   The combined target is determined by majority vote:
 
-  ```math
-  \text{Target}_t = \operatorname{sign}\Big( 1.0 \cdot \text{pos}_{\text{Ridge}} + 1.0 \cdot \text{pos}_{\text{Shinji}} + 1.0 \cdot \text{pos}_{\text{Calendar}} \Big)
-  ```
+  $$
+  \text{Target}_t = \mathrm{sign}\Big( 1.0 \cdot \text{pos}_{\text{Ridge}} + 1.0 \cdot \text{pos}_{\text{Shinji}} + 1.0 \cdot \text{pos}_{\text{Calendar}} \Big)
+  $$
 
   At 14h30 (ATC auction), position is frozen to the 14h00 state ($\text{pos}\_{14:30} = \text{pos}\_{14:00}$) to prevent non-executable auction flips and guarantee zero future leaks.
 - **Cadence:** 30-minute regular clocks (`09:00`, `09:30`, `10:00`, `10:30`, `11:00`, `13:00`, `13:30`, `14:00`). Signals derived from bar $T$ submit orders at bar $T+1$.
@@ -306,17 +306,17 @@ This reads available Plutus JSON reports under `reports/` and writes `docs/PLUTU
 | Dimension | Local Lab Engine (`src/lab/backtest/`) | Plutus Engine (`plutus.market` / `ExchangeSession`) |
 | :--- | :--- | :--- |
 | **Objective** | Fast alpha hypothesis verification & signal calibration. | Institutional-grade execution parity and margin solvency check. |
-| **PnL & Net Measure** | **Index Points**: $\text{GrossGain} - \text{FeeCost}$ | **VND Capital**: $\text{Final Capital} - \text{Initial Capital}$ |
+| **PnL & Net Measure** | **Index Points**: $\mathrm{GrossGain} - \mathrm{FeeCost}$ | **VND Capital**: $\mathrm{FinalCapital} - \mathrm{InitialCapital}$ |
 | **Fee Model** | Simplified point deduction: **0.8 pts/round-trip** (0.4 pts/unit change). | Full statutory charges: HNX (2,700₫), VSDC (2,550₫), PIT tax (0.1%), exchange slip. |
-| **Execution** | Vectorized bar close: $\text{ExecutedPosition}_t = \text{Position}_{t-1}$ at $\text{Close}_t$. | L2/L3 order book matching, trade-through validation, queue priority, ATC auction. |
-| **Sharpe Basis** | **Point-based distribution**: $\frac{\operatorname{Mean}(\Delta P_{\text{daily}})}{\operatorname{Std}(\Delta P_{\text{daily}})} \times \sqrt{252}$ | **Percentage equity returns**: $\frac{\operatorname{Mean}(R_t) - R_f / 250}{\operatorname{Std}(R_t)} \times \sqrt{250}$ |
+| **Execution** | Vectorized bar close: $\text{ExecutedPosition}[t] = \text{Position}[t-1]$ at $\text{Close}[t]$. | L2/L3 order book matching, trade-through validation, queue priority, ATC auction. |
+| **Sharpe Basis** | **Point-based distribution**:<br>$\frac{\mathrm{mean}(\Delta P)}{\mathrm{std}(\Delta P)} \times \sqrt{252}$ | **Percentage equity returns**:<br>$\frac{\mathrm{mean}(R_t) - R_f / 250}{\mathrm{std}(R_t)} \times \sqrt{250}$ |
 | **Capital Dependency** | Capital-invariant (evaluates the strategy's edge in points). | Capital-sensitive (depends on account size, e.g. 100M VND, leverage, and margin utilisation). |
-| **Risk-Free Rate ($R_f$)** | $R_f = 0$ | $R_f = 3\%$ per annum (Vietnam benchmark). |
+| **Risk-Free Rate ($R_f$)** | $R_f = 0$ | $R_f = 3\text{\%}$ per annum (Vietnam benchmark). |
 | **Trading Days / Year** | 252 (Western convention). | 250 (median Vietnamese market trading sessions). |
 
 #### Why Sharpe & Net Differ Between Engines:
 1. **Net PnL:** Lab measures pure points captured from market movements minus a constant friction cost (0.8 pts). Plutus translates points to VND ($100,000 \text{ VND/point}$), models real fills against the historical order book, and deducts actual exchange fees, clearing fees, and statutory transfer taxes.
-2. **Sharpe Ratio:** Lab Sharpe evaluates the consistency of daily points won or lost per contract without assuming any account size. Plutus Sharpe evaluates percentage returns on invested cash, accounting for leverage, margin equity volatility, and cash yield over the risk-free rate ($R_f = 3\%$).
+2. **Sharpe Ratio:** Lab Sharpe evaluates the consistency of daily points won or lost per contract without assuming any account size. Plutus Sharpe evaluates percentage returns on invested cash, accounting for leverage, margin equity volatility, and cash yield over the risk-free rate ($R_f = 3\text{\%}$).
 
 ### Visual Execution Plots (Plutus Engine)
 
