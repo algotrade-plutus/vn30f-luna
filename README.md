@@ -98,11 +98,11 @@ The strategy derives a net integer target position $\text{Target}\_t \in \{-1, 0
 - **Ensemble Voting & ATC Rule:**
   The combined target is determined by majority vote:
 
-  $$
-  \text{Target}_t = \mathrm{sign}\Big( 1.0 \cdot \text{pos}_{\text{Ridge}} + 1.0 \cdot \text{pos}_{\text{Shinji}} + 1.0 \cdot \text{pos}_{\text{Calendar}} \Big)
-  $$
+$$
+\text{Target}_t = \mathrm{sign}\left( 1.0 \cdot \text{pos}_{\text{Ridge},t} + 1.0 \cdot \text{pos}_{\text{Shinji},t} + 1.0 \cdot \text{pos}_{\text{Calendar},t} \right)
+$$
 
-  At 14h30 (ATC auction), position is frozen to the 14h00 state ($\text{pos}\_{14:30} = \text{pos}\_{14:00}$) to prevent non-executable auction flips and guarantee zero future leaks.
+  At 14h30 (ATC auction), position is frozen to the 14h00 state ($\text{pos}_{14:30} = \text{pos}_{14:00}$) to prevent non-executable auction flips and guarantee zero future leaks.
 - **Cadence:** 30-minute regular clocks (`09:00`, `09:30`, `10:00`, `10:30`, `11:00`, `13:00`, `13:30`, `14:00`). Signals derived from bar $T$ submit orders at bar $T+1$.
 - **Costs:** Modelled soft-fill execution with full exchange charges.
 
