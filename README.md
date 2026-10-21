@@ -108,16 +108,34 @@ $$
 
 ### Evaluation Metrics
 
-The pipeline reports verified metrics following the Plutus standard:
+The pipeline reports verified metrics following the Plutus standard and comprehensive statistical metrics in the Lab engine:
 
-| Metric               | Display Name            | Unit               | Verification Kind |
-| -------------------- | ----------------------- | ------------------ | ----------------- |
-| `profit_after_fee` | Net Profit After Fee    | Index points       | Exact             |
-| `sharpe_after_fee` | Annualized Sharpe Ratio | Ratio              | Tolerance (5%)    |
-| `margin_after_fee` | Margin per Trade        | Basis points (bps) | Tolerance (5%)    |
-| `mdd_point`        | Maximum Drawdown (MDD)  | Index points       | Tolerance (5%)    |
-| `total_trade`      | Trade Count             | Count              | Exact             |
-| `hitrate`          | Win Rate                | Percentage (%)     | Tolerance (2%)    |
+| Metric | Display Name | Unit | Verification Kind |
+| :--- | :--- | :--- | :--- |
+| `profit_after_fee` | Net Profit After Fee | Index points | Exact |
+| `sharpe_after_fee` | Annualized Sharpe Ratio | Ratio | Tolerance (5%) |
+| `margin_after_fee` | Margin per Trade | Basis points (bps) | Tolerance (5%) |
+| `mdd_point` | Maximum Drawdown (MDD) | Index points | Tolerance (5%) |
+| `total_trade` | Trade Count | Count | Exact |
+| `hitrate` | Win Rate | Percentage (%) | Tolerance (2%) |
+
+#### Lab Engine Metric Definitions (`src/lab/backtest/`)
+
+1. **Index-point PnL**
+   - $\text{GrossGain}[t] = \text{ExecutedPosition}[t] \times (\text{Close}[t] - \text{Close}[t-1])$, where $\text{ExecutedPosition}[t] = \text{Position}[t-1]$.
+   - $\text{FeeCost}[t] = |\text{Position}[t] - \text{Position}[t-1]| \times \frac{\text{fee}}{2}$ (default round-trip fee = 0.8 points).
+   - $\text{NetGain}[t] = \text{GrossGain}[t] - \text{FeeCost}[t]$.
+2. **Sharpe ratio (point-based)**
+   $$\text{Sharpe} = \frac{\overline{D}}{\sigma(D)} \times \sqrt{252}, \quad D_d = \sum_{t \in d} \text{NetGain}[t]$$
+   Computed on daily net PnL in points after fees, including flat days ($D_d = 0$), with $R_f = 0$ and $\text{ddof} = 1$.
+3. **Return per year and Avg return per year**
+   - $\text{Return per year} = \frac{\sum (\text{NetGain}[t] / \text{Close}[t])}{\text{trading\_days} - 1} \times 252 \times 100\%$ (return on index notional).
+   - $\text{Avg return per year} = \frac{1}{Y} \sum_{y=1}^Y \text{Return}_y$ (mean of calendar-year returns).
+4. **Sortino and Calmar**
+   - $\text{Sortino} = \frac{\overline{D}}{\sqrt{\frac{1}{N}\sum \min(D_d, 0)^2}} \times \sqrt{252}$ (penalises downside only).
+   - $\text{Calmar} = \frac{\text{Profit per year}}{\text{MDD points}}$.
+5. **Trade ledger**
+   - A trade is a contiguous run of bars with the same $\text{sign}(\text{Position}) \neq 0$, from entry until the position returns to 0 or reverses. Scale-ins and scale-outs in the same direction stay inside one trade, so multi-contract positions do not inflate trade counts or distort HitRate and Profit per trade.
 
 ## Implementation & Reproducibility
 
@@ -189,18 +207,82 @@ make calibrum-insample
 
 Calibrum uses pre-trained, frozen tensor weights in `PS_V30_Vien_Calibrum/PS_V30_Vien_Calibrum_model.pt` without runtime fitting.
 
-### Sleeve Ablation Analysis
+### Sleeve Decomposition: 7 Alpha Subsets
 
-To confirm that all three sleeves contribute positively to the ensemble, ablation experiments were conducted:
+Every subset of the three sleeves (each alone, each pair, all three) is evaluated on the Lab engine with DNSE 30-minute data, 1 contract, 0.8-point round-trip fee. Pairs and the triplet use majority vote, $\operatorname{sign}(\cdot)$.
 
-| Configuration                    |         Net Points |         Sharpe |    Margin (bps) |    Max Drawdown |
-| -------------------------------- | -----------------: | -------------: | --------------: | --------------: |
-| **Full Calibrum Ensemble** | **+2,056.5** | **3.22** | **21.44** | **103.3** |
-| *Ablation: Disable Shinji*     |           +1,412.3 |           2.15 |           14.80 |           145.2 |
-| *Ablation: Disable Calendar*   |           +1,580.6 |           2.48 |           16.10 |           128.0 |
-| *Ablation: Disable Ridge H2*   |           +1,120.4 |           1.82 |           13.20 |           172.5 |
+![Cumulative net points per 1 contract](image/README/ensemble_sleeves_cumulative_points.png)
 
-The full ensemble yields the highest risk-adjusted Sharpe and lowest drawdown, validating the multi-engine hypothesis.
+| Subset | IS Net (Sharpe / MDD) | OOS Net (Sharpe / MDD) | FWD Net (Sharpe / MDD) | Full Net (Sharpe / MDD) |
+| :--- | :---: | :---: | :---: | :---: |
+| Ridge (R) | +1,044.7 (2.02 / 102.2) | +312.8 (1.08 / 130.9) | +429.3 (0.82 / 267.9) | +1,783.4 (1.29 / 267.9) |
+| Shinji (S) | +420.6 (0.78 / 327.6) | +234.5 (0.69 / 149.5) | +1,040.1 (1.92 / 285.5) | +1,696.0 (1.16 / 327.6) |
+| Calendar (C) | +998.9 (2.04 / 261.3) | +550.0 (1.83 / 143.0) | +779.4 (1.65 / 172.4) | +2,353.1 (1.81 / 261.3) |
+| R + S | +1,184.6 (2.26 / 161.9) | +317.1 (1.00 / 122.5) | +947.1 (1.65 / 170.7) | +2,454.7 (1.66 / 170.7) |
+| R + C | +1,518.1 (2.89 / 98.0) | +701.4 (2.27 / 74.3) | +972.3 (1.77 / 194.2) | +3,207.0 (2.23 / 194.2) |
+| S + C | +807.9 (1.61 / 209.8) | +526.6 (1.67 / 129.7) | +1,133.3 (2.15 / 223.6) | +2,490.3 (1.79 / 223.6) |
+| **R + S + C** | **+1,563.1 (2.95 / 123.3)** | +568.1 (1.70 / 71.4) | **+1,327.4 (2.36 / 223.1)** | **+3,483.9 (2.36 / 223.1)** |
+
+Net and MDD are in index points. Periods: IS 2021-01-15 → 2022-12-30, OOS 2023-01-01 → 2024-12-19, FWD 2025-01-01 → 2026-10-01.
+
+- **Ridge** is strongest in-sample and weakest in the forward window (Sharpe 0.82).
+- **Shinji** is weak in-sample but is the best single sleeve in the forward window (+1,040.1 pts).
+- **Calendar** is the most consistent sleeve (Sharpe 1.65–2.04 in every window) and has the highest full-period standalone profit.
+- **R + S + C** has the highest full-period profit, because the sleeves peak in different regimes.
+
+### Sleeve Correlation
+
+![Alpha sleeve correlation heatmaps](image/README/ensemble_correlation_heatmaps.png)
+
+Pairwise Pearson correlations of daily net PnL (top row) and bar positions (bottom row) stay between −0.13 and +0.13 in every window. Over the full period, daily PnL correlation is +0.048 (R, S), +0.106 (R, C) and −0.030 (S, C). The three sleeves trade largely independent information, which is what makes combining them useful.
+
+### Additive Alpha vs. Signal Filter
+
+A secondary signal $B$ can be combined with a primary signal $A$ in two ways:
+
+- **Additive alpha:** $B$ opens trades on its own, including when $A = 0$.
+- **Entry filter:** $B$ only gates $A$; the position is $A \times \text{gate}(B)$, so nothing is traded when $A = 0$.
+
+A filter is the better choice when $B$ has little standalone edge. Additive combination is better when $B$ earns money in periods where $A$ is flat. The test below uses Ridge as $A$ and Calendar as $B$.
+
+![Additive alpha vs. signal filter](image/README/alpha_additive_vs_filter_comparison.png)
+
+| Combination (Full period, 1 contract) | Position rule | Net (pts) | Sharpe | MDD (pts) |
+| :--- | :--- | :---: | :---: | :---: |
+| Ridge alone | $R$ | +1,783.4 | 1.29 | 267.9 |
+| Calendar alone | $C$ | +2,353.1 | 1.81 | 261.3 |
+| Strict filter | $R \cdot \mathbb{1}[C = R]$ | +1,020.7 | 1.31 | 165.6 |
+| No-opposition filter | $R \cdot \mathbb{1}[C \neq -R]$ | +2,358.8 | 1.95 | 175.4 |
+| **Additive (vote)** | $\operatorname{sign}(R + C)$ | **+3,207.0** | **2.23** | 194.2 |
+
+The no-opposition filter improves Ridge (Sharpe 1.29 → 1.95, MDD 267.9 → 175.4), so Calendar does carry useful filtering information. Calendar also has a large standalone edge, though, and most of it shows up when Ridge is flat. Additive combination keeps that edge: +848.2 points and a higher Sharpe than the best filter, at the cost of an 18.8-point larger MDD. Calibrum therefore combines sleeves additively instead of using them as filters.
+
+### Ensemble Method Comparison
+
+| Method | Position rule | IS Net (Sh / MDD) | OOS Net (Sh / MDD) | FWD Net (Sh / MDD) | Full Net (Sh / MDD) |
+| :--- | :--- | :---: | :---: | :---: | :---: |
+| 1. Majority vote (baseline) | $\operatorname{sign}(R+S+C)$, 1 contract | +1,563.1 (2.95 / 123.3) | +568.1 (1.70 / 71.4) | +1,327.4 (2.36 / 223.1) | +3,483.9 (2.36 / 223.1) |
+| 2. **Equal-weight sum** | $R+S+C \in \{-3..3\}$, 3 contracts | +2,559.4 (2.83 / 172.4) | +1,198.9 (2.17 / 123.8) | +2,324.0 (2.46 / 299.2) | +6,105.3 (2.45 / 299.2) |
+| 3. Equal-weight sum, normalized | $(R+S+C)/3$, 1 contract | +853.1 (2.83 / 57.5) | +399.6 (2.17 / 41.3) | +774.7 (2.46 / 99.7) | +2,035.1 (2.45 / 99.7) |
+| 4. Consensus (≥ 2 agree) | trade only when ≥ 2 sleeves agree | +770.1 (2.14 / 66.2) | +487.3 (2.34 / 62.9) | +746.6 (1.99 / 141.1) | +2,005.4 (2.04 / 141.1) |
+| 5. No-conflict | flat when any two sleeves disagree | +1,227.8 (2.82 / 133.2) | +544.1 (2.04 / 81.8) | +1,019.5 (1.93 / 175.5) | +2,808.3 (2.17 / 175.5) |
+| 6–8. Static IS weights | inverse-vol / Sharpe / mean-variance | +1,806.1 (3.10 / 131.0) | +715.0 (1.85 / 143.3) | +1,338.3 (2.13 / 320.6) | +3,890.2 (2.36 / 320.6) |
+
+Methods 6, 7 and 8 fit different weights on IS but produced identical metrics in every window, so they are reported as one row.
+
+Methods 2 and 3 are the same strategy at different sizes (method 2 = 3 × method 3). Per contract, compare method 3 with method 1:
+
+- **Majority vote** earns more points (+3,483.9 vs +2,035.1), because it always trades the full contract once two sleeves agree.
+- **Equal-weight sum** has a slightly higher Sharpe in every out-of-sample window (OOS 2.17 vs 1.70, FWD 2.46 vs 2.36) and less than half the drawdown (99.7 vs 223.1 pts). When sleeves disagree, the position nets down (for example $+1 +1 -1 = +1$) instead of staying at full size.
+
+The equal-weight sum was selected for execution validation because it gives the better risk-adjusted profile. The cost is lower raw profit per contract, and the next section checks that trade-off on Plutus.
+
+Reproduce the Lab tables and figures:
+
+```bash
+make ensemble-research
+uv run python scripts/generate_ensemble_plots.py
+```
 
 ## 6. Out-of-sample Backtesting
 
@@ -308,15 +390,44 @@ This reads available Plutus JSON reports under `reports/` and writes `docs/PLUTU
 | **Objective** | Fast alpha hypothesis verification & signal calibration. | Institutional-grade execution parity and margin solvency check. |
 | **PnL & Net Measure** | **Index Points**: $\mathrm{GrossGain} - \mathrm{FeeCost}$ | **VND Capital**: $\mathrm{FinalCapital} - \mathrm{InitialCapital}$ |
 | **Fee Model** | Simplified point deduction: **0.8 pts/round-trip** (0.4 pts/unit change). | Full statutory charges: HNX (2,700₫), VSDC (2,550₫), PIT tax (0.1%), exchange slip. |
-| **Execution** | Vectorized bar close: $\text{ExecutedPosition}[t] = \text{Position}[t-1]$ at $\text{Close}[t]$. | L2/L3 order book matching, trade-through validation, queue priority, ATC auction. |
-| **Sharpe Basis** | **Point-based distribution**:<br>$\frac{\mathrm{mean}(\Delta P)}{\mathrm{std}(\Delta P)} \times \sqrt{252}$ | **Percentage equity returns**:<br>$\frac{\mathrm{mean}(R_t) - R_f / 250}{\mathrm{std}(R_t)} \times \sqrt{250}$ |
-| **Capital Dependency** | Capital-invariant (evaluates the strategy's edge in points). | Capital-sensitive (depends on account size, e.g. 100M VND, leverage, and margin utilisation). |
-| **Risk-Free Rate ($R_f$)** | $R_f = 0$ | $R_f = 3\text{\%}$ per annum (Vietnam benchmark). |
-| **Trading Days / Year** | 252 (Western convention). | 250 (median Vietnamese market trading sessions). |
+| **Execution** | Vectorized bar close: $\text{ExecutedPosition}[t] = \text{Position}[t-1]$ at $\text{Close}[t]$. | Exchange session with real contracts, price bands, expiry settlement and margin. Reported runs use soft fills at the observed bar price (no order-book depth, 10% participation cap). |
+| **Sharpe Basis** | **Point-based distribution**:<br>$\frac{\mathrm{mean}(\Delta P)}{\mathrm{std}(\Delta P)} \times \sqrt{252}$ | **Percentage equity returns**:<br>$\frac{\mathrm{mean}(R_t)}{\mathrm{std}(R_t)} \times \sqrt{252}$, where $R_t$ is the daily return of account equity |
+| **Capital Dependency** | Capital-invariant (evaluates the strategy's edge in points). | Capital-sensitive (depends on account size, e.g. 300M VND, leverage, and margin utilisation). |
+| **Risk-Free Rate ($R_f$)** | $R_f = 0$ | $R_f = 0$ |
+| **Trading Days / Year** | 252 | 252 |
 
 #### Why Sharpe & Net Differ Between Engines:
-1. **Net PnL:** Lab measures pure points captured from market movements minus a constant friction cost (0.8 pts). Plutus translates points to VND ($100,000 \text{ VND/point}$), models real fills against the historical order book, and deducts actual exchange fees, clearing fees, and statutory transfer taxes.
-2. **Sharpe Ratio:** Lab Sharpe evaluates the consistency of daily points won or lost per contract without assuming any account size. Plutus Sharpe evaluates percentage returns on invested cash, accounting for leverage, margin equity volatility, and cash yield over the risk-free rate ($R_f = 3\text{\%}$).
+1. **Net PnL:** Lab measures pure points captured from market movements minus a constant friction cost (0.8 pts). Plutus translates points to VND ($100,000 \text{ VND/point}$), fills orders on real contracts at the observed bar price, and deducts actual exchange fees, clearing fees, and statutory transfer taxes.
+2. **Sharpe Ratio:** Lab Sharpe evaluates the consistency of daily points won or lost per contract without assuming any account size. Plutus Sharpe evaluates daily percentage returns on account equity, so it depends on capital, leverage and margin equity volatility. Both engines annualize with $\sqrt{252}$ and use $R_f = 0$; the Plutus figures come from `PlutusResearchRunner._metrics`, not from the risk-free-adjusted `plutus.evaluation` Sharpe (250 days, $R_f = 3\text{\%}$).
+
+### Plutus Validation: Majority Vote vs. Equal-Weight Sum (300M VND, 3 Contracts)
+
+After Steps 1–6 on the Lab engine (DNSE data), both ensembles were replayed on Plutus against `algotradeDB` tick data aggregated to 30-minute bars, with HNX and VSDC fees, 0.1% PIT tax and SSI margin. Both use the same capital and the same 3-contract cap:
+
+- **Majority vote:** $3 \times \operatorname{sign}(R+S+C) \in \{-3, 0, +3\}$; full size whenever two sleeves agree.
+- **Equal-weight sum:** $R+S+C \in \{-3, \dots, +3\}$; full size only when all three agree.
+
+![Plutus equity and drawdown: vote vs. sum](image/README/plutus_vote_vs_sum_equity.png)
+
+| Period | Method | Net PnL (VND) | Return | Sharpe | MDD | Fills | Total charges (VND) | Peak margin use |
+| :--- | :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| IS 2021–2022 | Majority vote | +416.55M | +138.85% | 3.703 | 4.83% | 466 | 20.76M | 20.6% |
+| | **Equal-weight sum** | +318.71M | +106.24% | **3.958** | **2.44%** | 779 | 12.62M | 18.9% |
+| OOS 2023–2024 | Majority vote | +239.14M | +79.71% | 2.732 | 5.37% | 578 | 30.02M | 19.7% |
+| | **Equal-weight sum** | +164.08M | +54.69% | **3.186** | **2.28%** | 945 | 17.98M | 18.7% |
+| FWD 2025–10/2026 | Majority vote | +449.02M | +149.67% | 3.055 | 9.56% | 513 | 35.60M | 26.2% |
+| | **Equal-weight sum** | +361.49M | +120.50% | **4.056** | **3.55%** | 860 | 22.02M | 23.4% |
+
+The Plutus results agree with the per-contract Lab comparison:
+
+- **Majority vote** makes more VND in every period, because it holds 3 contracts whenever two sleeves agree.
+- **Equal-weight sum** has a higher Sharpe in every period and roughly half the drawdown or less (2.44% vs 4.83%, 2.28% vs 5.37%, 3.55% vs 9.56%). It also pays lower total charges despite more fills: it averages about 1.2 contracts per fill versus about 3.3 for majority vote, and trades 38–40% fewer contracts in total (e.g. IS 949 vs 1,560).
+- Neither run triggered a 90% margin call. Peak margin utilisation stayed below 27%.
+
+> [!NOTE]
+> Both forward-period reports have `status: FAILED`. Plutus flagged indeterminate evaluations and excluded 4 incomplete sessions (2025-07-17, 2025-07-22, 2026-01-19, 2026-03-09) from metrics. IS and OOS reports have `status: PASSED`. The DB series is not verified platform-adjusted data (parity caveat in each report).
+
+Reports: `reports/calibrum_plutus_{insample,oos,forward}_{vote3,sum3}_300m.json`.
 
 ### Visual Execution Plots (Plutus Engine)
 

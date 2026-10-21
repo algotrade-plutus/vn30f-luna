@@ -86,3 +86,13 @@ Khi giải quyết bất kỳ yêu cầu nào trong repo này, Agent phải tuâ
 3. **Giữ gìn nhánh:**
    * Nhánh `main`: Chứa phiên bản ổn định, baseline đã kiểm chứng.
    * Nhánh `refactor/clean-architecture`: Nhánh phát triển kiến trúc 4 tầng mới.
+
+## 6. Triết Lý Nghiên Cứu (Bắt Buộc)
+
+Mọi nghiên cứu chiến lược tuân theo triết lý ALGOTRADE trong [.claude/skills/algotrade-hypothesis/philosophy.md](.claude/skills/algotrade-hypothesis/philosophy.md) (người dùng chốt 19/10/2026):
+1. **Thiết kế trước khi chạy:** Mỗi giả thuyết mới phải có `PROTOCOL.md` (skill `algotrade-hypothesis`, chế độ Thiết kế) nêu nguồn alpha, ai trả tiền, luật đo được, dự đoán bác bỏ, ngân sách lần thử và khoảng dữ liệu. Thiếu thì chưa backtest.
+2. **Bác bỏ được:** Dự đoán bác bỏ viết trước; xảy ra thì bỏ giả thuyết, không vá cho đẹp.
+3. **Đơn giản trước, bỏ nhanh:** Bắt đầu từ luật ít tham số; mỗi bộ lọc thêm là một lần thử; quá ít phiên bản có lãi thì bỏ.
+4. **Vùng ổn định:** Chỉ chọn tham số mà lân cận cũng tốt, không chọn đỉnh nhọn.
+5. **Out-of-sample dùng một lần:** Đếm và ghi mọi lần nhìn; đã dùng để chọn thì không còn là out-of-sample. Báo kết quả kèm tổng số lần thử và Deflated Sharpe.
+6. **Phán quyết có ghi chép:** Khi nhánh có kết quả, chạy chế độ Phán quyết của skill và ghi GIỮ / SỬA LUẬT / BỎ vào report.
