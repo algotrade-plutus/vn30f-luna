@@ -1,6 +1,7 @@
 """Derive a diagnostic ledger from the executed position stream."""
 from __future__ import annotations
 
+import numpy as np
 import pandas as pd
 
 from .config import BacktestConfig
@@ -22,7 +23,8 @@ def derive_trade_ledger(
     config: BacktestConfig,
 ) -> pd.DataFrame:
     executed = accounting.ExecutedPosition
-    segment_id = executed.ne(executed.shift()).cumsum()
+    sign = np.sign(executed)
+    segment_id = sign.ne(sign.shift()).cumsum()
     active = accounting[executed.ne(0.0)].copy()
     if active.empty:
         return pd.DataFrame(columns=TRADE_COLUMNS)
@@ -32,15 +34,18 @@ def derive_trade_ledger(
         .agg(
             EntryDatetime=("Datetime", "first"),
             ExitDatetime=("Datetime", "last"),
-            Side=("ExecutedPosition", "first"),
+            Side=("ExecutedPosition", lambda s: float(np.sign(s.iloc[0]))),
             GrossPoints=("GrossGain", "sum"),
             BarsHeld=("GrossGain", "size"),
         )
         .reset_index(drop=True)
     )
-    # Every contiguous executed segment represents one trading unit.
-    # A complete discrete round trip pays half the fee on entry and half on exit.
-    ledger["FeePoints"] = ledger.Side.abs() * config.round_trip_fee_points
+    peak_units = (
+        active.groupby("Segment", sort=True)["ExecutedPosition"]
+        .apply(lambda s: float(s.abs().max()))
+        .reset_index(drop=True)
+    )
+    ledger["FeePoints"] = peak_units * config.round_trip_fee_points
     ledger["NetPoints"] = ledger.GrossPoints - ledger.FeePoints
     return ledger.loc[:, TRADE_COLUMNS]
 

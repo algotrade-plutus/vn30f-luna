@@ -40,16 +40,23 @@ def validate_position_stream(
     if not np.isfinite(frame.Position).all():
         raise ValueError("Position must be finite")
     if config.require_discrete_position:
+        if config.allowed_discrete_positions is not None:
+            allowed = np.asarray(config.allowed_discrete_positions, dtype=float)
+        elif config.max_position > 1.0:
+            max_int = int(round(config.max_position))
+            allowed = np.arange(-max_int, max_int + 1, dtype=float)
+        else:
+            allowed = np.asarray((-1.0, 0.0, 1.0))
         distance = np.min(
-            np.abs(frame.Position.to_numpy()[:, None] - np.asarray((-1.0, 0.0, 1.0))),
+            np.abs(frame.Position.to_numpy()[:, None] - allowed),
             axis=1,
         )
         if (distance > config.position_tolerance).any():
             invalid = sorted(frame.loc[distance > config.position_tolerance, "Position"].unique())
-            raise ValueError(f"Position must remain discrete -1/0/+1; found {invalid}")
+            raise ValueError(f"Position must remain discrete in {allowed.tolist()}; found {invalid}")
         frame["Position"] = frame.Position.round().astype(float)
-    elif (frame.Position.abs() > 1.0 + config.position_tolerance).any():
-        raise ValueError("Position must remain inside [-1, 1]")
+    elif (frame.Position.abs() > config.max_position + config.position_tolerance).any():
+        raise ValueError(f"Position must remain inside [-{config.max_position}, {config.max_position}]")
     return frame.reset_index(drop=True)
 
 

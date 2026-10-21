@@ -19,6 +19,8 @@ from typing import Any
 
 import pandas as pd
 
+from src.domain.strategy.calendar_rules import front_month_contract
+
 API_URL_TEMPLATE = "https://api.dnse.com.vn/chart-api/v2/ohlcs/{market}"
 VIETNAM_TZ = timezone(timedelta(hours=7), name="Asia/Ho_Chi_Minh")
 REQUIRED_COLUMNS = ("Datetime", "Open", "High", "Low", "Close", "Volume")
@@ -30,6 +32,8 @@ DEFAULT_TIMEOUT = 30
 DEFAULT_USER_AGENT = "luna-vn30f-research"
 
 __all__ = [
+    "add_front_month_contract",
+    "align_to_bar_clock",
     "DnseCandleSource",
     "DnseDataError",
     "cache_path",
@@ -107,6 +111,42 @@ def normalize_bars(frame: pd.DataFrame) -> pd.DataFrame:
         .drop_duplicates("Datetime", keep="last")
         .reset_index(drop=True)
     )
+    return out
+
+
+def align_to_bar_clock(frame: pd.DataFrame, minutes: int = 30) -> pd.DataFrame:
+    """Relabel bars to the start of their ``minutes`` bucket, merging bars that share one.
+
+    Until mid-2025 DNSE labels the first VN30 index bar 09:15: a short bar from
+    the end of the HOSE opening auction to 09:30.  Futures and database bars use
+    09:00 for the bar closing at 09:30.  Without relabelling, a backward as-of
+    join pairs the 09:00 futures bar with the previous session's index close.
+    Both bars close at 09:30, so the relabel adds no look-ahead.
+    """
+    out = normalize_bars(frame)
+    if len(out) == 0:
+        return out
+    out["Datetime"] = out["Datetime"].dt.floor(f"{minutes}min")
+    merged = out.groupby("Datetime", sort=True).agg(
+        Open=("Open", "first"),
+        High=("High", "max"),
+        Low=("Low", "min"),
+        Close=("Close", "last"),
+        Volume=("Volume", "sum"),
+    )
+    return merged.reset_index()
+
+
+def add_front_month_contract(frame: pd.DataFrame) -> pd.DataFrame:
+    """Add the inferred front-month contract code to a continuous VN30F1M frame.
+
+    DNSE serves no contract code.  The code follows the exchange calendar: a
+    month's contract is front month through its expiry session.
+    """
+    out = frame.copy()
+    sessions = pd.to_datetime(out["Datetime"]).dt.date
+    codes = {day: front_month_contract(day) for day in sessions.unique()}
+    out["Contract"] = sessions.map(codes)
     return out
 
 

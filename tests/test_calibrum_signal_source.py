@@ -7,6 +7,7 @@ import pytest
 
 from src.adapters.strategies.calibrum_signal_source import (
     _ridge_with_roll_guard,
+    apply_session_rules,
     pre_shift_positions,
     roll_adjust_front_month,
 )
@@ -91,3 +92,27 @@ def test_ridge_roll_guard_restarts_each_contract_and_zeros_expiry() -> None:
 
     assert FrozenRidge.calls == [2, 1]
     assert positions.tolist() == [0, 0, 1]
+
+
+def test_session_rules_repeat_1400_at_atc_and_flatten_expiry() -> None:
+    # 2024-01-17 is a regular Wednesday; 2024-01-18 is the January expiry Thursday.
+    stamps = pd.Series(
+        pd.to_datetime(
+            [
+                "2024-01-17 14:00",
+                "2024-01-17 14:30",
+                "2024-01-18 13:30",
+                "2024-01-18 14:00",
+                "2024-01-18 14:30",
+            ]
+        )
+    )
+    positions = [-1, 1, 1, 1, 1]
+
+    assert apply_session_rules(positions, stamps).tolist() == [-1, -1, 1, 0, 0]
+    assert apply_session_rules(positions, stamps, expiry_flat=False).tolist() == [-1, -1, 1, 1, 1]
+
+
+def test_session_rules_reject_misaligned_inputs() -> None:
+    with pytest.raises(ValueError, match="same length"):
+        apply_session_rules([0, 1], pd.Series(pd.to_datetime(["2024-01-17 14:00"])))

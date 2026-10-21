@@ -18,6 +18,8 @@ class BacktestConfig:
     annualization_days: int = 252
     require_discrete_position: bool = True
     position_tolerance: float = 1e-12
+    max_position: float = 1.0
+    allowed_discrete_positions: tuple[float, ...] | None = None
 
     def __post_init__(self) -> None:
         if self.round_trip_fee_points < 0.0:
@@ -26,6 +28,8 @@ class BacktestConfig:
             raise ValueError("annualization_days must be positive")
         if self.position_tolerance < 0.0:
             raise ValueError("position tolerance cannot be negative")
+        if self.max_position <= 0.0:
+            raise ValueError("max_position must be positive")
 
     @property
     def fee_per_position_unit(self) -> float:

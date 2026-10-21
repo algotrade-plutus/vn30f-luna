@@ -8,6 +8,8 @@ from typing import Any
 from .plutus_bar_source import PlutusBarSource, ReplayBar
 
 __all__ = [
+    "add_front_month_contract",
+    "align_to_bar_clock",
     "DnseCandleSource",
     "DnseDataError",
     "PlutusBarSource",
@@ -39,6 +41,8 @@ def __getattr__(name: str) -> Any:
 
         return PostgresResearchSource
     if name in {
+        "add_front_month_contract",
+        "align_to_bar_clock",
         "DnseCandleSource",
         "DnseDataError",
         "cache_path",

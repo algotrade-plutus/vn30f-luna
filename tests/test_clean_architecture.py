@@ -18,6 +18,8 @@ from src.domain.entities.position import Position
 from src.domain.strategy.calendar_rules import (
     business_day_index_in_month,
     is_calendar_long_day,
+    expiry_date,
+    front_month_contract,
     is_expiry_thursday,
     is_pre_holiday,
     is_regular_monday,
@@ -274,3 +276,11 @@ def test_trading_cycle_use_case_with_calibrum_signal_adapter():
     assert log2.order_action == "SELL 2"
     assert broker.get_position("VN30F2401").net_quantity == 0
 
+
+
+def test_expiry_date_moves_before_holiday_and_front_month_rolls_after_it():
+    assert expiry_date(2024, 1) == date(2024, 1, 18)
+    assert expiry_date(2024, 4) == date(2024, 4, 17)
+    assert front_month_contract(date(2024, 1, 18)) == "VN30F2401"
+    assert front_month_contract(date(2024, 1, 19)) == "VN30F2402"
+    assert front_month_contract(date(2024, 12, 20)) == "VN30F2501"

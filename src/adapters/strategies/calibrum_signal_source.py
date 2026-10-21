@@ -24,6 +24,7 @@ import pandas as pd
 
 from src.application.ports.signal_port import ISignalGateway
 from src.domain.entities.bar import Bar
+from src.domain.strategy.calendar_rules import is_expiry_thursday
 
 
 _SOURCE_NAME = "PS_V30_Vien_Calibrum.py"
@@ -110,6 +111,7 @@ def pre_shift_positions(
     positions: pd.DataFrame,
     *,
     quantity: int = 1,
+    max_position: int = 1,
 ) -> dict[datetime, int]:
     """Map a completed-bar position to the next available execution interval.
 
@@ -121,6 +123,8 @@ def pre_shift_positions(
 
     if isinstance(quantity, bool) or not isinstance(quantity, int) or quantity < 1:
         raise ValueError("quantity must be a positive integer")
+    if isinstance(max_position, bool) or not isinstance(max_position, int) or max_position < 1:
+        raise ValueError("max_position must be a positive integer")
     required = {"Datetime", "Position"}
     if missing := required - set(positions.columns):
         raise ValueError(f"Position frame missing columns: {sorted(missing)}")
@@ -130,13 +134,48 @@ def pre_shift_positions(
         raise ValueError("Calibrum timestamps must be non-null and unique")
     ordered = ordered.sort_values("Datetime", kind="stable").reset_index(drop=True)
     values = ordered["Position"].to_numpy()
-    if not np.isin(values, (-1, 0, 1)).all():
-        raise ValueError("Calibrum positions must be in {-1, 0, 1}")
+    if max_position == 1:
+        if not np.isin(values, (-1, 0, 1)).all():
+            raise ValueError("Calibrum positions must be in {-1, 0, 1}")
+    else:
+        allowed = np.arange(-max_position, max_position + 1)
+        if not np.isin(values, allowed).all():
+            raise ValueError(f"Calibrum positions must be in {allowed.tolist()}")
 
     return {
         stamp.to_pydatetime(): int(position) * quantity
         for stamp, position in zip(ordered["Datetime"].iloc[1:], values[:-1], strict=True)
     }
+
+
+def apply_session_rules(
+    positions: np.ndarray | pd.Series,
+    datetimes: pd.Series,
+    *,
+    expiry_flat: bool = True,
+) -> np.ndarray:
+    """Apply the ensemble's session rules to bar-close positions.
+
+    The 14:30 ATC bar repeats the 14:00 position, so no new decision is taken
+    in the closing auction.  On an expiry session the position is flat from the
+    14:00 bar: its target executes in the ATC, so nothing is carried from the
+    expiring contract into the next front month.
+    """
+
+    out = np.asarray(positions).copy()
+    stamps = pd.Series(pd.to_datetime(datetimes)).reset_index(drop=True)
+    if len(stamps) != len(out):
+        raise ValueError("positions and datetimes must have the same length")
+    clocks = stamps.dt.strftime("%H:%M").to_numpy()
+    for index in np.flatnonzero(clocks == "14:30"):
+        if index > 0:
+            out[index] = out[index - 1]
+    if expiry_flat:
+        sessions = stamps.dt.date
+        expiry_days = {day for day in sessions.unique() if is_expiry_thursday(day)}
+        expiry = sessions.isin(expiry_days).to_numpy()
+        out[expiry & (clocks >= "14:00")] = 0
+    return out
 
 
 def _rolls(frame: pd.DataFrame) -> list[dict[str, str]]:
@@ -247,11 +286,13 @@ def generate_calibrum_position_stream(
     spot: pd.DataFrame,
     package_dir: Path | str,
     *,
+    ensemble_mode: str = "vote",
     parameter_overrides: dict[str, Any] | None = None,
     use_shinji: bool = True,
     shinji_basis_price: str = "raw",
-    shinji_roll_guard: bool = False,
+    shinji_roll_guard: bool = True,
     ridge_roll_guard: bool = False,
+    expiry_flat: bool = True,
 ) -> tuple[pd.DataFrame, dict[str, Any]]:
     """Generate the unshifted Calibrum position stream and audit evidence.
 
@@ -286,6 +327,8 @@ def generate_calibrum_position_stream(
 
     if shinji_basis_price not in {"raw", "roll_adjusted"}:
         raise ValueError("shinji_basis_price must be 'raw' or 'roll_adjusted'")
+    if ensemble_mode not in {"vote", "sum"}:
+        raise ValueError("ensemble_mode must be 'vote' or 'sum'")
     configured_model = str(parameters.get("model_file", _MODEL_NAME))
     if configured_model != _MODEL_NAME:
         raise ValueError(
@@ -312,32 +355,48 @@ def generate_calibrum_position_stream(
         shinji_futures = frozen._clean_frame(
             _FrameFeed(shinji_futures), "roll-adjusted VN30F1M/30m"
         )
-    if use_shinji:
-        shinji = (
-            _shinji_with_roll_guard(
-                frozen, shinji_futures, clean_spot, parameters
-            )
+    # Shinji trades only sessions with index bars; elsewhere the as-of join
+    # would pair futures with a stale index close from an earlier session.
+    spot_sessions = set(clean_spot["Datetime"].dt.date)
+    covered = shinji_futures["Datetime"].dt.date.isin(spot_sessions).to_numpy()
+    sessions_without_spot = sorted(
+        {day.isoformat() for day in shinji_futures.loc[~covered, "Datetime"].dt.date}
+    )
+    shinji = np.zeros(len(clean_futures), dtype=int)
+    if use_shinji and covered.any():
+        shinji_input = shinji_futures.loc[covered].reset_index(drop=True)
+        shinji[covered] = (
+            _shinji_with_roll_guard(frozen, shinji_input, clean_spot, parameters)
             if shinji_roll_guard
-            else frozen._shinji_positions(shinji_futures, clean_spot, parameters)
+            else frozen._shinji_positions(shinji_input, clean_spot, parameters)
         )
-    else:
-        shinji = np.zeros(len(clean_futures), dtype=int)
     calendar = frozen._calendar_positions(clean_futures, parameters)
     if not (len(ridge) == len(shinji) == len(calendar) == len(clean_futures)):
         raise RuntimeError("Calibrum sleeve lengths are not aligned")
     weights = np.asarray(model["ensemble_weights"])
-    raw_position = np.sign(
-        weights[0] * ridge + weights[1] * shinji + weights[2] * calendar
-    ).astype(int)
-    clocks = clean_futures["Datetime"].dt.strftime("%H:%M").to_numpy()
-    for index in np.flatnonzero(clocks == "14:30"):
-        if index > 0:
-            raw_position[index] = raw_position[index - 1]
-    if not np.isin(raw_position, (-1, 0, 1)).all():
-        raise RuntimeError("Calibrum generated an invalid position")
+    if ensemble_mode == "vote":
+        raw_position = np.sign(
+            weights[0] * ridge + weights[1] * shinji + weights[2] * calendar
+        ).astype(int)
+    else:
+        raw_position = (
+            weights[0] * ridge + weights[1] * shinji + weights[2] * calendar
+        ).astype(int)
+    raw_position = apply_session_rules(
+        raw_position, clean_futures["Datetime"], expiry_flat=expiry_flat
+    )
+    if ensemble_mode == "vote":
+        if not np.isin(raw_position, (-1, 0, 1)).all():
+            raise RuntimeError("Calibrum generated an invalid position")
+    else:
+        if not np.isin(raw_position, np.arange(-3, 4)).all():
+            raise RuntimeError("Calibrum sum generated an invalid position")
 
     stream = clean_futures[["Datetime", "Close"]].copy()
     stream["Position"] = raw_position
+    stream["Ridge"] = ridge
+    stream["Shinji"] = shinji
+    stream["Calendar"] = calendar
 
     actual_hashes = {
         "source": _sha256(source_path),
@@ -396,6 +455,14 @@ def generate_calibrum_position_stream(
             "shinji_roll_guard": shinji_roll_guard,
             "calendar": True,
         },
+        "shinji_sessions_without_spot": sessions_without_spot,
+        "expiry_flat": expiry_flat,
+        "expiry_flat_note": (
+            "The ensemble is flat from the 14:00 bar of each expiry session, so its "
+            "target executes in the ATC and no position crosses a contract roll."
+            if expiry_flat
+            else None
+        ),
         "shinji_roll_guard_note": (
             "Shinji is forced flat on expiry sessions and restarted for each "
             "front-month contract; its 40-bar warm-up therefore applies after "
@@ -422,10 +489,12 @@ def generate_calibrum_targets(
     package_dir: Path | str,
     *,
     quantity: int = 1,
+    ensemble_mode: str = "vote",
     use_shinji: bool = True,
     shinji_basis_price: str = "raw",
-    shinji_roll_guard: bool = False,
+    shinji_roll_guard: bool = True,
     ridge_roll_guard: bool = False,
+    expiry_flat: bool = True,
 ) -> CalibrumTargets:
     """Generate frozen Calibrum targets for a raw-roll DB/Plutus replay.
 
@@ -438,16 +507,23 @@ def generate_calibrum_targets(
         futures,
         spot,
         package_dir,
+        ensemble_mode=ensemble_mode,
         use_shinji=use_shinji,
         shinji_basis_price=shinji_basis_price,
         shinji_roll_guard=shinji_roll_guard,
         ridge_roll_guard=ridge_roll_guard,
+        expiry_flat=expiry_flat,
     )
-    targets = pre_shift_positions(stream, quantity=quantity)
+    targets = pre_shift_positions(
+        stream,
+        quantity=quantity,
+        max_position=3 if ensemble_mode == "sum" else 1,
+    )
     diagnostics["executable_target_counts"] = dict(
         sorted(Counter(targets.values()).items())
     )
     diagnostics["quantity"] = quantity
+    diagnostics["ensemble_mode"] = ensemble_mode
     return CalibrumTargets(targets=targets, diagnostics=diagnostics)
 
 

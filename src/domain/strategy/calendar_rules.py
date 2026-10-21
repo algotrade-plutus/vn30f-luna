@@ -59,19 +59,36 @@ def is_pre_holiday(d: date) -> bool:
     return calendar_gap > normal_gap
 
 
-def is_expiry_thursday(d: date) -> bool:
-    """Whether ``d`` is the VN30F last trading day for its contract month.
+def expiry_date(year: int, month: int) -> date:
+    """VN30F last trading day for the contract month ``year``-``month``.
 
     The nominal date is the third Thursday.  When that is an exchange closure,
     the last trading day moves to the immediately preceding trading day.
     """
 
-    month_cal = calendar.monthcalendar(d.year, d.month)
+    month_cal = calendar.monthcalendar(year, month)
     thursdays = [week[calendar.THURSDAY] for week in month_cal if week[calendar.THURSDAY] != 0]
-    nominal = date(d.year, d.month, thursdays[2])
+    nominal = date(year, month, thursdays[2])
     while not is_trading_day(nominal):
         nominal -= timedelta(days=1)
-    return d == nominal
+    return nominal
+
+
+def is_expiry_thursday(d: date) -> bool:
+    """Whether ``d`` is the VN30F last trading day for its contract month."""
+    return d == expiry_date(d.year, d.month)
+
+
+def front_month_contract(d: date) -> str:
+    """Code of the VN30F contract nearest to expiry on session ``d``, e.g. ``VN30F2106``.
+
+    The contract of a month stays front month through its expiry session; the
+    next month's contract takes over from the following session.
+    """
+    year, month = d.year, d.month
+    if d > expiry_date(year, month):
+        year, month = (year + 1, 1) if month == 12 else (year, month + 1)
+    return f"VN30F{year % 100:02d}{month:02d}"
 
 
 def business_day_index_in_month(d: date) -> int:
