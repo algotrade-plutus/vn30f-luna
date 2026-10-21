@@ -42,6 +42,25 @@ SUMMARY_METRIC_KEYS = (
     "hit_rate",
     "profit_per_trade",
     "profit_per_year",
+    "return_per_year",
+    "avg_return_per_year",
+    "sortino_after_fee",
+    "calmar_after_fee",
+    "annual_volatility_points",
+    "worst_daily_loss",
+    "daily_var_95",
+    "daily_cvar_95",
+    "mdd_duration_days",
+    "mdd_recovery_days",
+    "daily_skew",
+    "daily_kurtosis",
+    "profit_factor",
+    "avg_win_points",
+    "avg_loss_points",
+    "win_loss_ratio",
+    "avg_bars_held",
+    "exposure_rate",
+    "fee_ratio",
     "long_trades",
     "short_trades",
 )
@@ -75,9 +94,9 @@ __all__ = [
 def add_common_arguments(
     parser: argparse.ArgumentParser,
     *,
-    default_start: str,
-    default_end: str,
-    default_report: str,
+    default_start: str | None,
+    default_end: str | None,
+    default_report: str | None,
     include_fee: bool = True,
 ) -> None:
     parser.add_argument("--start", default=default_start, help="Start date (inclusive), YYYY-MM-DD")
@@ -177,7 +196,11 @@ def load_research_frames(
         return futures, spot, meta
 
     if source == "dnse":
-        from src.adapters.data import load_or_fetch_dnse_bars
+        from src.adapters.data import (
+            add_front_month_contract,
+            align_to_bar_clock,
+            load_or_fetch_dnse_bars,
+        )
 
         futures, futures_meta = load_or_fetch_dnse_bars(
             "derivative",
@@ -195,8 +218,8 @@ def load_research_frames(
             cache_dir=cache_dir,
             allow_fetch=allow_fetch,
         )
-        if "Contract" not in futures.columns:
-            futures = futures.assign(Contract="VN30F1M")
+        futures = add_front_month_contract(align_to_bar_clock(futures))
+        spot = align_to_bar_clock(spot)
 
         meta = {
             "source": "dnse:https://api.dnse.com.vn/chart-api/v2/ohlcs",
@@ -216,21 +239,32 @@ def run_lab_backtest(
     parameter_overrides: dict[str, Any] | None = None,
     use_shinji: bool = True,
     shinji_basis_price: str = "raw",
-    shinji_roll_guard: bool = False,
+    shinji_roll_guard: bool = True,
     ridge_roll_guard: bool = False,
+    expiry_flat: bool = True,
+    ensemble_mode: str = "vote",
 ):
-    """Generate the unshifted Calibrum position stream and evaluate it locally."""
+    """Generate the unshifted Calibrum position stream and evaluate it locally.
+
+    ``vote`` trades sign(R + S + C), at most 1 contract; ``sum`` trades
+    R + S + C, at most 3 contracts.
+    """
     stream, diagnostics = generate_calibrum_position_stream(
         futures,
         spot,
         PACKAGE_DIR,
+        ensemble_mode=ensemble_mode,
         parameter_overrides=parameter_overrides,
         use_shinji=use_shinji,
         shinji_basis_price=shinji_basis_price,
         shinji_roll_guard=shinji_roll_guard,
         ridge_roll_guard=ridge_roll_guard,
+        expiry_flat=expiry_flat,
     )
-    config = BacktestConfig(round_trip_fee_points=fee)
+    config = BacktestConfig(
+        round_trip_fee_points=fee,
+        max_position=3.0 if ensemble_mode == "sum" else 1.0,
+    )
     result = evaluate(stream, config)
     return result, diagnostics, config
 

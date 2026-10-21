@@ -28,9 +28,15 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     add_common_arguments(
         parser,
-        default_start="2021-01-15",
+        default_start="2021-06-01",
         default_end="2022-12-30",
-        default_report="reports/step4_insample_lab.json",
+        default_report=None,
+    )
+    parser.add_argument(
+        "--ensemble",
+        choices=("vote", "sum"),
+        default="vote",
+        help="vote: sign(R+S+C), 1 contract; sum: R+S+C, up to 3 contracts",
     )
     return parser
 
@@ -51,13 +57,15 @@ def main() -> int:
             cache_dir=args.cache_dir,
             allow_fetch=not args.no_fetch,
         )
-        result, diagnostics, config = run_lab_backtest(futures, spot, fee=args.fee)
+        result, diagnostics, config = run_lab_backtest(
+            futures, spot, fee=args.fee, ensemble_mode=args.ensemble
+        )
     except Exception as exc:  # noqa: BLE001
         print(f"Step 4 failed: {exc}", file=sys.stderr)
         return 1
 
     payload = build_base_payload(
-        report_name="step4_insample_lab",
+        report_name=f"step4_insample_lab_{args.ensemble}",
         sample="in_sample",
         start=start,
         end=end,
@@ -67,11 +75,18 @@ def main() -> int:
         diagnostics=diagnostics,
         config=config,
     )
-    report_path = write_json_report(args.report, payload)
-    figure_paths = save_lab_plots(result, "reports/figures/step4_insample_lab", title="Step 4: In-sample lab backtest")
+    report_path = write_json_report(
+        args.report or f"reports/step4_insample_lab_{args.ensemble}.json", payload
+    )
+    figure_paths = save_lab_plots(
+        result,
+        f"reports/figures/step4_insample_lab_{args.ensemble}",
+        title=f"Step 4: In-sample lab backtest ({args.ensemble})",
+    )
 
     print("STEP 4 - IN-SAMPLE LAB BACKTEST")
     print(f"Data source: {args.source}")
+    print(f"Ensemble: {args.ensemble}")
     print(f"Requested window: {start.isoformat()} -> {end.isoformat()}")
     print(format_metrics(result.metrics))
     print(f"Report: {report_path}")

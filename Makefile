@@ -6,14 +6,27 @@ setup:
 	git submodule update --init --recursive
 	$(UV) sync --frozen
 
+# Plutus runs: 300M VND, 3-contract cap for every ensemble so methods compare fairly.
+# vote trades 3 x sign(R+S+C); sum trades R+S+C in [-3, 3] (the runner multiplies sum by 3).
+ENSEMBLE ?= vote
+CAPITAL ?= 300000000
+PLUTUS_CONTRACTS = $(if $(filter sum,$(ENSEMBLE)),1,3)
+FORWARD_END ?= 2026-10-01
+PLUTUS_RUN = $(UV) run python scripts/run_calibrum_plutus.py --ensemble-mode $(ENSEMBLE) \
+	--capital $(CAPITAL) --contracts $(PLUTUS_CONTRACTS)
+
 calibrum-insample:
-	$(UV) run python scripts/run_calibrum_plutus.py --sample in_sample --start 2021-01-15 --end 2022-12-30
+	$(PLUTUS_RUN) --sample in_sample --start 2021-06-01 --end 2022-12-30 \
+		--report reports/calibrum_plutus_insample_$(ENSEMBLE)3_300m.json
 
 calibrum-oos:
-	$(UV) run python scripts/run_calibrum_plutus.py --sample out_of_sample --start 2023-01-01 --end 2024-12-19
+	$(PLUTUS_RUN) --sample out_of_sample --start 2023-01-01 --end 2024-12-19 \
+		--report reports/calibrum_plutus_oos_$(ENSEMBLE)3_300m.json
 
+# 2025 is left out; forward starts in 2026 and is the last check before paper trading.
 calibrum-forward:
-	$(UV) run python scripts/run_calibrum_plutus.py --sample forward --start 2026-08-25 --end 2026-10-01
+	$(PLUTUS_RUN) --sample forward --start 2026-01-01 --end $(FORWARD_END) \
+		--report reports/calibrum_plutus_forward_$(ENSEMBLE)3_300m.json
 
 plot:
 	$(UV) run python scripts/plot_calibrum_backtest.py
@@ -50,13 +63,18 @@ fetch-data:
 	$(UV) run python scripts/fetch_dnse_candles.py
 
 step4:
-	$(UV) run python scripts/run_step4_insample.py
+	$(UV) run python scripts/run_step4_insample.py --no-fetch --ensemble $(ENSEMBLE)
 
 step5:
-	$(UV) run python scripts/run_step5_optimize.py
+	$(UV) run python scripts/run_step5_selection.py
 
 step6:
-	$(UV) run python scripts/run_step6_oos.py
+	$(UV) run python scripts/run_step6_oos.py --no-fetch --ensemble $(ENSEMBLE) --sample out_of_sample
+	$(UV) run python scripts/run_step6_oos.py --no-fetch --ensemble $(ENSEMBLE) --sample forward
 
 plutus-report:
 	$(UV) run python scripts/generate_plutus_report.py
+
+ensemble-research:
+	$(UV) run python scripts/run_ensemble_research.py --no-fetch
+

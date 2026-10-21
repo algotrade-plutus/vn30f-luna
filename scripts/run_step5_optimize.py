@@ -35,7 +35,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     add_common_arguments(
         parser,
-        default_start="2021-01-15",
+        default_start="2021-06-01",
         default_end="2022-12-30",
         default_report="reports/step5_optimize_lab.json",
     )

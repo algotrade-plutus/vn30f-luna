@@ -23,7 +23,7 @@ REPORT_PATH = WORKSPACE / "reports" / "calibrum_raw_roll_insample_plutus.json"
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--start", default="2021-01-15")
+    parser.add_argument("--start", default="2021-06-01")
     parser.add_argument("--end", default="2022-12-30")
     parser.add_argument(
         "--sample",
@@ -46,13 +46,27 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--shinji-roll-guard",
-        action="store_true",
+        action=argparse.BooleanOptionalAction,
+        default=True,
         help="Flat Shinji on expiry and reset its 40-bar history after each roll",
     )
     parser.add_argument(
         "--ridge-roll-guard",
-        action="store_true",
+        action=argparse.BooleanOptionalAction,
+        default=False,
         help="Flat Ridge on expiry and reset ATR/state after each roll",
+    )
+    parser.add_argument(
+        "--expiry-flat",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Flat the ensemble from the 14:00 bar of each expiry session",
+    )
+    parser.add_argument(
+        "--ensemble-mode",
+        choices=("vote", "sum"),
+        default="vote",
+        help="Ensemble rule: 'vote' (majority vote 1 contract) or 'sum' (3 independent contracts)",
     )
     parser.add_argument(
         "--report",
@@ -80,32 +94,36 @@ def main() -> None:
         spot = database.load_index_bars(start, end)
     finally:
         database.pool.close()
+    multiplier = args.contracts * (3 if args.ensemble_mode == "sum" else 1)
     targets = generate_calibrum_targets(
         futures,
         spot,
         PACKAGE_DIR,
         quantity=args.contracts,
+        ensemble_mode=args.ensemble_mode,
         use_shinji=not args.disable_shinji,
         shinji_basis_price=args.shinji_basis_price,
         shinji_roll_guard=args.shinji_roll_guard,
         ridge_roll_guard=args.ridge_roll_guard,
+        expiry_flat=args.expiry_flat,
     )
     runner = PlutusResearchRunner(
         PlutusBarSource(futures, spot),
         initial_deposit=Decimal(str(args.capital)),
-        target_multiplier=args.contracts,
+        target_multiplier=multiplier,
         execution_model="soft",
+    )
+    sig_name = (
+        "calibrum_raw_roll_sum3"
+        if args.ensemble_mode == "sum"
+        else ("calibrum_raw_roll_no_shinji" if args.disable_shinji else "calibrum_raw_roll")
     )
     result = runner.run(
         start,
         end,
         sample=args.sample,
         target_by_start=targets.targets,
-        signal_name=(
-            "calibrum_raw_roll_no_shinji"
-            if args.disable_shinji
-            else "calibrum_raw_roll"
-        ),
+        signal_name=sig_name,
     )
     payload = result.to_dict(include_series=True)
     payload["calibrum_replay"] = targets.diagnostics
@@ -129,6 +147,7 @@ def main() -> None:
     print(f"Shinji basis price:  {args.shinji_basis_price}")
     print(f"Shinji roll guard:   {'enabled' if args.shinji_roll_guard else 'disabled'}")
     print(f"Ridge roll guard:    {'enabled' if args.ridge_roll_guard else 'disabled'}")
+    print(f"Expiry flat:         {'enabled' if args.expiry_flat else 'disabled'}")
     print("Parity caveat:       no — DB series is not verified platform adjusted data")
     print(f"Report: {report_path}")
 

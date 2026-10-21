@@ -28,18 +28,37 @@ from lab_common import (  # noqa: E402
 )
 
 
+WINDOWS = {
+    "out_of_sample": ("2023-01-01", "2024-12-19"),
+    "forward": ("2026-01-01", "2026-10-01"),
+}
+SHORT = {"out_of_sample": "oos", "forward": "forward"}
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     add_common_arguments(
         parser,
-        default_start="2023-01-01",
-        default_end="2024-12-19",
-        default_report="reports/step6_oos_lab.json",
+        default_start=None,
+        default_end=None,
+        default_report=None,
+    )
+    parser.add_argument(
+        "--sample",
+        choices=tuple(WINDOWS),
+        default="out_of_sample",
+        help="Window: out_of_sample (2023-01-01 to 2024-12-19) or forward (2026-01-01 to 2026-10-01)",
+    )
+    parser.add_argument(
+        "--ensemble",
+        choices=("vote", "sum"),
+        default="sum",
+        help="sum (official, up to 3 contracts) or vote (reference, 1 contract)",
     )
     parser.add_argument(
         "--step4-report",
-        default="reports/step4_insample_lab.json",
-        help="Step 4 lab report used for retention comparison",
+        default=None,
+        help="Step 4 lab report used for retention comparison; defaults to the same ensemble",
     )
     return parser
 
@@ -62,6 +81,12 @@ def load_step4_metrics(path: Path) -> dict | None:
 def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
+    default_start, default_end = WINDOWS[args.sample]
+    args.start = args.start or default_start
+    args.end = args.end or default_end
+    name = f"step6_{SHORT[args.sample]}_lab_{args.ensemble}"
+    args.report = args.report or f"reports/{name}.json"
+    args.step4_report = args.step4_report or f"reports/step4_insample_lab_{args.ensemble}.json"
     start, end = parse_window(args, parser)
 
     if args.fee < 0:
@@ -75,7 +100,9 @@ def main() -> int:
             cache_dir=args.cache_dir,
             allow_fetch=not args.no_fetch,
         )
-        result, diagnostics, config = run_lab_backtest(futures, spot, fee=args.fee)
+        result, diagnostics, config = run_lab_backtest(
+            futures, spot, fee=args.fee, ensemble_mode=args.ensemble
+        )
     except Exception as exc:  # noqa: BLE001
         print(f"Step 6 failed: {exc}", file=sys.stderr)
         return 1
@@ -114,8 +141,8 @@ def main() -> int:
         }
 
     payload = build_base_payload(
-        report_name="step6_oos_lab",
-        sample="out_of_sample",
+        report_name=name,
+        sample=args.sample,
         start=start,
         end=end,
         source=args.source,
@@ -126,10 +153,13 @@ def main() -> int:
         extra={"comparison_with_insample_lab": comparison},
     )
     report_path = write_json_report(args.report, payload)
-    figure_paths = save_lab_plots(result, "reports/figures/step6_oos_lab", title="Step 6: Out-of-sample lab backtest")
+    figure_paths = save_lab_plots(
+        result, f"reports/figures/{name}", title=f"Step 6: {args.sample} lab backtest ({args.ensemble})"
+    )
 
-    print("STEP 6 - OUT-OF-SAMPLE LAB BACKTEST")
+    print(f"STEP 6 - {args.sample.upper()} LAB BACKTEST")
     print(f"Data source: {args.source}")
+    print(f"Ensemble: {args.ensemble}")
     print(f"Requested window: {start.isoformat()} -> {end.isoformat()}")
     observed = payload["observed_window"]
     print(
