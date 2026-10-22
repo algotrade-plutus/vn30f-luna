@@ -18,8 +18,9 @@ point is worth 100,000 dong per contract. Trading runs from 9 to 14:45 with a lu
 are a closing auction. The contract expires on the third Thursday of the month and is settled in cash against the
 index. Costs are the HNX and VSDC fees and the tax on transfers.
 
-The point I want you to remember is the last box. Investors cannot short sell the stocks in the index. That makes
-arbitrage between futures and the index slow, and one of my three ideas depends on that.
+The last box is what makes this market move the way it does. The initial margin is 17 percent, so one dong of capital
+controls about six dong of index exposure. Most of the traders are individuals. Leveraged retail money reacts fast and
+in the same direction, and two of my three ideas, momentum and the basis, feed on that.
 
 ### 3. Why combine several sources of alpha · 1:00
 
@@ -31,12 +32,13 @@ allocation: uncorrelated strategies raise the Sharpe ratio and shorten the recov
 Calibrum applies that principle with three sources: the calendar, the basis and momentum. The question of this work is:
 does the combination hold up out of sample, after real costs? To answer it I use two engines. A fast lab engine tests
 the alpha alone. The Plutus exchange simulator tests alpha plus execution, with real contracts, real fees and margin.
-And before every test I wrote down the selection rule and counted the trials.
 
 ### 4. The 9-step process: steps 1 to 6 covered today · 0:45
 
 This is the roadmap. The filled cards are the six steps I cover today: hypotheses, data, rules, in-sample test,
-optimization and out-of-sample test. The dashed cards, from paper trading to real trading, come after this work.
+optimization and out-of-sample test. Step 7, paper trading, is already running on the exchange's paper platform since
+the 25th of August; its results are not part of today's talk. The dashed cards, small account testing and real trading,
+come after that.
 
 Running total: 3:15
 
