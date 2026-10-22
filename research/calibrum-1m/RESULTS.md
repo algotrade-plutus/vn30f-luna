@@ -191,9 +191,26 @@ Mở một lần ngày 22/10/2026 (`run_calibrum_1m.py oos1`, dữ liệu nạp 
 
 IC của score Momentum trên OOS 1: +0,086. Cả 7 tổ hợp lãi; tổ hợp cuối C+B+M có Sharpe cao nhất.
 
+## OOS 2: 01/01/2026 – 21/10/2026
+
+Mở một lần ngày 22/10/2026 (`run_calibrum_1m.py oos2`, nến cuối 21/10/2026 14:45), sau commit OOS 1.
+
+| Tổ hợp | Lãi (triệu đồng) | Sharpe | MDD | Margin (bps) | Số lệnh | Hit rate |
+|---|---:|---:|---:|---:|---:|---:|
+| C | 74,3 | 3,32 | 5,9% | 29,1 | 65 | 68% |
+| B | 14,3 | 0,67 | 21,7% | 6,8 | 54 | 39% |
+| M | −9,3 | −0,77 | 21,6% | −3,3 | 73 | 37% |
+| C+B | 86,5 | 3,64 | 12,2% | 26,3 | 84 | 64% |
+| C+M | 66,2 | 2,82 | 6,8% | 17,2 | 99 | 51% |
+| B+M | 4,5 | 0,23 | 27,8% | 1,1 | 101 | 41% |
+| **C+B+M** | **71,7** | **2,87** | 8,9% | 16,1 | 114 | 51% |
+
+IC của score Momentum trên OOS 2: −0,004. Momentum lỗ 9,3 triệu đồng: score không còn dự báo được chiều giá năm 2026,
+khớp với chẩn đoán trước đó trên bản Ridge cũ. Tổ hợp cuối C+B+M vẫn lãi 71,7 triệu, Sharpe 2,87; C+B tốt nhất năm này.
+
 ## Chưa chạy
 
-OOS 2 (2026), mở một lần; DSR với N ≥ 418.
+DSR với N ≥ 418; phán quyết theo chế độ Phán quyết của skill algotrade-hypothesis.
 
 ## 6. Ghi chú vận hành
 
