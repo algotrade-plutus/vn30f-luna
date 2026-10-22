@@ -181,13 +181,17 @@ Mở một lần ngày 22/10/2026 (`run_calibrum_1m.py oos1`, dữ liệu nạp 
 
 | Tổ hợp | Lãi (triệu đồng) | Sharpe | MDD | Margin (bps) | Số lệnh | Hit rate |
 |---|---:|---:|---:|---:|---:|---:|
-| C | 69,0 | 2,37 | 15,9% | 32,4 | 67 | 69% |
+| C | 73,5 | 2,49 | 15,9% | 34,2 | 68 | 69% |
 | B | 21,9 | 0,78 | 23,7% | 9,6 | 71 | 45% |
 | M | 32,7 | 1,80 | 6,1% | 10,7 | 95 | 46% |
-| C+B | 69,2 | 2,27 | 20,6% | 21,6 | 101 | 52% |
-| C+M | 84,7 | 2,93 | 9,7% | 24,6 | 108 | 59% |
+| C+B | 73,7 | 2,38 | 20,6% | 22,9 | 102 | 52% |
+| C+M | 89,2 | 3,05 | 9,7% | 25,8 | 109 | 60% |
 | B+M | 47,8 | 1,68 | 16,5% | 12,2 | 122 | 51% |
-| **C+B+M** | **90,4** | **3,09** | 12,7% | 22,1 | 130 | 51% |
+| **C+B+M** | **94,9** | **3,20** | 12,7% | 23,1 | 131 | 51% |
+
+Số trên lấy từ lần chạy liền đến 21/10/2026. Lần mở OOS 1 (dữ liệu cắt ở 31/12/2025) cho C 69,0 và C+B+M 90,4, vì lệnh
+mua Calendar vào thứ Hai 29/12/2025 thoát ngày 02/01/2026 nên bị bỏ hẳn khi chưa có nến thoát. Theo quy ước chấm điểm
+(một lần chạy trên toàn chuỗi, lãi lỗ cộng theo ngày), phần lãi ngày 29–31/12 thuộc năm 2025. Sleeve B và M không đổi.
 
 IC của score Momentum trên OOS 1: +0,086. Cả 7 tổ hợp lãi; tổ hợp cuối C+B+M có Sharpe cao nhất.
 
