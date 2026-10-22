@@ -87,11 +87,21 @@ def _label_10m(stamp: pd.Timestamp) -> pd.Timestamp | None:
     return None
 
 
+def labels_10m(stamps: pd.Series) -> pd.Series:
+    """The 10-minute bar each minute print belongs to; off-session prints get NaT."""
+    return pd.to_datetime(stamps.map(_label_10m))
+
+
+def labels_30m(stamps: pd.Series) -> pd.Series:
+    """The 30-minute bar each minute print belongs to."""
+    return stamps.dt.floor("30min")
+
+
 def bars_10m(minutes: pd.DataFrame) -> pd.DataFrame:
     """10-minute bars in the calendar-mtw-vn30f convention, ATC bar included at 14:45."""
-    return _aggregate(minutes, minutes["Datetime"].map(_label_10m))
+    return _aggregate(minutes, labels_10m(minutes["Datetime"]))
 
 
 def bars_30m(minutes: pd.DataFrame) -> pd.DataFrame:
     """30-minute bars on Calibrum's clock: 09:00 ... 14:00, the 11:30 stub, and 14:30 with the ATC."""
-    return _aggregate(minutes, minutes["Datetime"].dt.floor("30min"))
+    return _aggregate(minutes, labels_30m(minutes["Datetime"]))

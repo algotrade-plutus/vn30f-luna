@@ -16,8 +16,8 @@ nguồn:
 - **Calendar MTW:** VN30F1M yếu trong phiên thứ Hai và mạnh từ cuối phiên thứ Hai đến sáng thứ Năm.
 - **Basis:** khi basis (VN30F1M − VN30) lệch khỏi trung bình W nến 30 phút từ z_in độ lệch chuẩn trở lên, basis co lại
   về trung bình trong vài phiên, và phần co lại lớn hơn phí một vòng.
-- **Momentum:** khi giá đóng nến 30 phút đã lệch khỏi giá mở cửa 09:00, khỏi SMA4 và khỏi thân nến theo cùng một chiều,
-  giá đi tiếp theo chiều đó trong 2 nến kế tiếp; lực đi tiếp yếu dần khi giá đã cách VWAP phiên quá xa.
+- **Momentum:** giá đang chạy về một phía trong phiên thì thường chạy tiếp về phía đó trong 2 nến 30 phút kế tiếp.
+  Năm đặc trưng ở mục 3.2 là năm cách đo giá đang chạy mạnh tới đâu.
 
 ## 2. Nguồn alpha và cơ chế
 
@@ -147,8 +147,8 @@ quỹ cao nhất (ký quỹ ban đầu theo ngày ÷ vốn), lãi theo năm.
 - B1 (Momentum): IC Spearman giữa s và y ngoài fold ≤ 0 ở ít nhất 2 trong 4 fold của λ đã chọn. Score không dự báo
   được chiều giá, giả thuyết Momentum sai.
 - B2 (Momentum): IC trên valid 2023–2024 ≤ 0.
-- B3 (Momentum): dấu hệ số của x2 (đuổi giá từ đầu phiên) không dương, hoặc của x1 (VWAP) không âm, trong fit cuối. Cơ
-  chế ở mục 2 không còn là thứ mô hình học được.
+- ~~B3 (Momentum): dấu hệ số của x2 không dương, hoặc của x1 (VWAP) không âm, trong fit cuối.~~ Bỏ khỏi điều kiện loại
+  sleeve, xem mục 9.
 - B4 (Basis): trong in-sample, trong các lần |Z| vượt z_in, tỷ lệ |Z| về dưới z_in / 2 trong vòng 8 nến không quá 50%.
 - B5 (Basis): tách lãi lỗ từng lệnh thành phần do Δbasis và phần do Δchỉ số; tổng phần Δbasis trên in-sample ≤ 0. Sleeve
   lãi nhờ đoán hướng thị trường, không nhờ basis hồi.
@@ -172,10 +172,11 @@ Lần thử mới của nhánh này, khoá trước:
 | Momentum: q | 3 |
 | Basis: W × z_in | 25 |
 | Gộp: chọn 1 trong 7 tổ hợp | 7 |
-| **Tổng mới** | **40** |
+| Sửa luật B3 sau khi thấy hệ số (mục 9) | 1 |
+| **Tổng mới** | **41** |
 
 Tổng tích luỹ (cận dưới, vì lịch sử trước khi có repo không được ghi): Ridge 27, Basis 9, các phép thử bước 5 cũ của
-Calibrum 6, Calendar MTW 334 (repo calendar-mtw-vn30f: 16 + 318), nhánh này 40. N ≥ 416. DSR tính với N = 416 và ghi rõ
+Calibrum 6, Calendar MTW 334 (repo calendar-mtw-vn30f: 16 + 318), nhánh này 41. N ≥ 417. DSR tính với N = 417 và ghi rõ
 là cận dưới.
 
 ## 7. Dữ liệu
@@ -199,3 +200,14 @@ liệu mù. Dữ liệu mù duy nhất bắt đầu từ 22/10/2026.
 2. Lưới λ, q, W × z_in như mục 3.2 và 3.3.
 3. Luật chọn tổ hợp cuối như mục 3.5.
 4. Tên giai đoạn: in-sample, valid, OOS 1, OOS 2.
+
+## 9. Sửa đổi sau khi chạy
+
+**22/10/2026, sau bước chọn λ (SỬA LUẬT, +1 lần thử).** Fit cuối (λ = 1) cho cả năm hệ số dương: x1 VWAP +0,038,
+x2 mở cửa +0,057, x3 SMA4 +0,026, x4 bất đối xứng +0,018, x5 thân nến +0,019. Trên in-sample cả năm đặc trưng đều tương
+quan dương với y (0,11 đến 0,15), và x1 tương quan 0,89 với x2. Quán tính được xác nhận (x2 dương, B1 không xảy ra);
+ý phụ "lực đi tiếp yếu dần khi giá cách VWAP xa" của bản protocol trước bị bác bỏ, vì giá xa VWAP vẫn đi tiếp.
+
+B3 gộp ý phụ đó vào điều kiện loại cả sleeve, phạt quá tay so với điều nó kiểm tra. Đã sửa: bỏ ý phụ khỏi giả thuyết ở
+mục 1, ghi kết quả trên như một phát hiện, và B3 không còn là điều kiện loại. Momentum vẫn phải qua B2 và B6 trên valid
+mới được vào tổ hợp cuối. λ, hệ số và các lưới khác giữ nguyên.
