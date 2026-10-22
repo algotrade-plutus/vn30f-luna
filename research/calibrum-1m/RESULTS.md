@@ -175,9 +175,25 @@ cắt dữ liệu ở 31/12/2022 nên bỏ lệnh đó.
 - **Sửa luật sau khi xem valid** (protocol mục 9, +1 lần thử): chọn tổ hợp có **Sharpe valid cao nhất**. **Tổ hợp cuối là
   C+B+M** (Sharpe valid 2,03; kế đến C+B 1,94, C+M 1,76). Việc sửa và lựa chọn được commit trước khi mở OOS 1.
 
+## OOS 1: năm 2025
+
+Mở một lần ngày 22/10/2026 (`run_calibrum_1m.py oos1`, dữ liệu nạp tới 31/12/2025), sau commit chọn tổ hợp.
+
+| Tổ hợp | Lãi (triệu đồng) | Sharpe | MDD | Margin (bps) | Số lệnh | Hit rate |
+|---|---:|---:|---:|---:|---:|---:|
+| C | 69,0 | 2,37 | 15,9% | 32,4 | 67 | 69% |
+| B | 21,9 | 0,78 | 23,7% | 9,6 | 71 | 45% |
+| M | 32,7 | 1,80 | 6,1% | 10,7 | 95 | 46% |
+| C+B | 69,2 | 2,27 | 20,6% | 21,6 | 101 | 52% |
+| C+M | 84,7 | 2,93 | 9,7% | 24,6 | 108 | 59% |
+| B+M | 47,8 | 1,68 | 16,5% | 12,2 | 122 | 51% |
+| **C+B+M** | **90,4** | **3,09** | 12,7% | 22,1 | 130 | 51% |
+
+IC của score Momentum trên OOS 1: +0,086. Cả 7 tổ hợp lãi; tổ hợp cuối C+B+M có Sharpe cao nhất.
+
 ## Chưa chạy
 
-OOS 1 (2025) và OOS 2 (2026), mỗi khoảng mở một lần; DSR với N ≥ 418.
+OOS 2 (2026), mở một lần; DSR với N ≥ 418.
 
 ## 6. Ghi chú vận hành
 
