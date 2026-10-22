@@ -7,8 +7,8 @@ Tài liệu này định hình toàn bộ cấu trúc dự án, quy tắc viết
 ## 1. Tổng Quan Dự Án & Mục Tiêu
 
 Dự án này là hệ thống giao dịch định lượng (Quantitative Trading System) cho thị trường chứng khoán & phái sinh Việt Nam (VN30F), được tái cấu trúc theo mô hình **Plutus-Centric Clean Architecture**:
-1. **Lấy dữ liệu Tick & Order Book làm nền tảng:** Kết nối trực tiếp với PostgreSQL `algotradeDB` (`quote.matched`, `quote.bidprice`, `quote.askprice`).
-2. **Plutus Engine thay thế hoàn toàn Bước 4 (In-Sample) và Bước 6 (Out-of-Sample):** Mọi kiểm thử đều diễn ra trên sàn giả lập trung thực (Plutus HNXDS/VSDC) có tính ngày hiệu lực (effective-dated), trừ đầy đủ phí HNX, bù trừ VSDC, thuế PIT và đo lường an toàn ký quỹ (Margin Utilisation, Margin Call 90%).
+1. **Lấy nến 1 phút DNSE làm nền tảng:** VN30F1M và chỉ số VN30 khung 1 phút từ API công khai của DNSE; nến 10 và 30 phút gộp từ nến 1 phút. Khoảng dữ liệu và giai đoạn nghiên cứu ghi trong `config/research.toml`. PostgreSQL `algotradeDB` chỉ phủ từ 2021 nên không dùng cho Bước 4–6.
+2. **Lab engine cho Bước 4 (In-Sample) và Bước 6 (Out-of-Sample):** Lab khớp lệnh tại giá close nến tín hiệu, tính chi phí 0,4 điểm mỗi hợp đồng mỗi chiều (gộp phí HNX, phí VSDC, thuế PIT, hoa hồng và trượt giá), lãi lỗ bằng VND trên vốn cố định, và mức sử dụng ký quỹ theo tỷ lệ ký quỹ ban đầu có ngày hiệu lực của Plutus. Plutus vẫn chỉ đọc, không sửa.
 3. **Research-Runtime Parity (Tính tương đồng tuyệt đối):** Dùng chung **100% Core Alpha logic** cho cả Backtest và Bot Live trên AWS EC2. Chỉ hoán đổi Execution Adapter, không viết lại code.
 4. **Kiểm định tính tái lập (Reproducibility):** Dùng `plutus-verify` và `.plutus/manifest.yaml` để đóng băng baseline trong container Docker độc lập.
 

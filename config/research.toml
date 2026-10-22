@@ -1,0 +1,51 @@
+# Calibrum research configuration: data, periods, execution and account.
+# Decided 2026-10-22. Periods follow calendar-mtw-vn30f, except that in-sample
+# starts when DNSE's VN30 index data allows the Basis sleeve to trade.
+
+[data]
+source = "dnse"
+base_resolution_minutes = 1
+# Signal bars are aggregated from the 1-minute bars.
+signal_resolutions_minutes = { calendar_mtw = 10, basis = 30, momentum = 30 }
+futures = { market = "derivative", symbol = "VN30F1M", first_bar = "2018-08-13" }
+# DNSE serves no VN30 index bars at any resolution before this day.
+index = { market = "index", symbol = "VN30", first_bar = "2020-05-11" }
+
+# DNSE serves no 1-minute futures bars for most sessions from 2023-03-22 to
+# 2023-09-21 (and a few others); those sessions use DNSE 5-minute bars, which
+# match the 1-minute bars exactly where both exist. Sessions missing at every
+# resolution are skipped, never filled.
+fallback_resolution_minutes = 5
+
+[prices]
+# Raw front-month prices for execution, PnL, costs, margin, stops, Basis and
+# Calendar MTW. Momentum features alone use an additive roll-adjusted copy.
+momentum_features = "additive_roll_adjusted"
+
+[periods]
+# Bars before in_sample.start are warm-up only, never scored.
+warmup_start = "2018-08-13"
+in_sample = { start = "2020-06-01", end = "2022-12-31" }
+valid = { start = "2023-01-01", end = "2024-12-31" }
+oos1 = { start = "2025-01-01", end = "2025-12-31" }
+# Open-ended: runs to the last available bar.
+oos2 = { start = "2026-01-01" }
+
+[execution]
+# Fill at the close of the bar that produced the signal.
+fill = "signal_bar_close"
+# Stops are checked, and filled, at the close of every 1-minute bar.
+stop_check_resolution_minutes = 1
+
+[account]
+# Fixed size, no compounding. One contract per 100 million VND.
+capital_per_contract_vnd = 100_000_000
+contracts_per_sleeve = 1
+multiplier_vnd_per_point = 100_000
+
+[costs]
+# All-in cost per contract per side: exchange, clearing and tax (about 0.11-0.16
+# points under Plutus's dated rulebook), broker commission and slippage.
+points_per_contract_per_side = 0.4
+# Plutus supplies the dated initial margin ratio, used for margin utilisation.
+rulebook = "vn-2020-2026"
