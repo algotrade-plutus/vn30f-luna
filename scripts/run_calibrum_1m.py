@@ -200,7 +200,66 @@ def basis_grid(config: dict) -> None:
     })
 
 
-STAGES = {"momentum-cv": momentum_cv, "momentum-q": momentum_q, "basis-grid": basis_grid}
+BASELINE = {"basis_window": 40, "basis_z_entry": 1.5, "momentum_q": 0.8}
+COMBOS = ("C", "B", "M", "C+B", "C+M", "B+M", "C+B+M")
+
+
+def _daily_net(market: pipeline.Market, position: np.ndarray, config: dict, start: pd.Timestamp, end: pd.Timestamp) -> pd.Series:
+    cost = config["costs"]["points_per_contract_per_side"]
+    stream = pd.DataFrame({"Datetime": market.minutes["Datetime"], "Close": market.close, "Position": position})
+    frame = pipeline.evaluate(stream, pipeline.BacktestConfig(round_trip_fee_points=2 * cost)).frame
+    daily = frame.groupby("SessionDate")["NetGain"].sum()
+    return daily[(daily.index >= start) & (daily.index <= end)]
+
+
+def in_sample_baseline(config: dict) -> None:
+    """Step 4: the seven combinations on in-sample with the starting parameters (PROTOCOL.md section 9)."""
+    windows = pipeline.periods(config)
+    start, end = windows["in_sample"]
+    market = pipeline.load_market(end.date())
+    model = _model()
+    scores = pipeline.momentum_scores(market, model)
+    in_sample_scores = scores[(scores.index >= start) & (scores.index <= end + pd.Timedelta(days=1))].abs().dropna()
+    theta = float(in_sample_scores.quantile(BASELINE["momentum_q"]))
+    sleeves = {
+        "C": pipeline.calendar_mtw_positions(market),
+        "B": pipeline.basis_positions(market, BASELINE["basis_window"], BASELINE["basis_z_entry"]),
+        "M": pipeline.momentum_positions(market, model, theta),
+    }
+    rows, yearly, daily_combos = [], {}, {}
+    for combo in COMBOS:
+        position = pipeline.vote(*(sleeves[name] for name in combo.split("+")))
+        metrics = pipeline.score_periods(market, position, {"in_sample": windows["in_sample"]}, config).loc["in_sample"]
+        rows.append({"combo": combo, **metrics.to_dict()})
+        daily = _daily_net(market, position, config, start, end)
+        daily_combos[combo] = daily
+        yearly[combo] = daily.groupby(daily.index.year).sum()
+    table = pd.DataFrame(rows).set_index("combo")
+    daily_sleeves = pd.DataFrame({name: _daily_net(market, sleeves[name], config, start, end) for name in "CBM"})
+    correlation = daily_sleeves.corr()
+    print(f"baseline: {BASELINE}, momentum lambda {model.lam}, theta {theta:.4f}")
+    print(table[["net_points", "return_pct", "sharpe", "mdd_pct", "margin_bps", "trades", "hit_rate", "exposure", "peak_margin_utilisation_pct"]].round(3).to_string())
+    print("\nnet points by year:")
+    print(pd.DataFrame(yearly).T.round(1).to_string())
+    print("\ndaily net PnL correlation:")
+    print(correlation.round(2).to_string())
+    _save("in_sample_baseline", {
+        "parameters": {**BASELINE, "momentum_lambda": model.lam, "momentum_theta": theta},
+        "combos": table.reset_index().to_dict("records"),
+        "yearly_net_points": {combo: {str(k): float(v) for k, v in series.items()} for combo, series in yearly.items()},
+        "correlation": correlation.round(4).to_dict(),
+        "daily_net_points": {
+            combo: {str(k.date()): float(v) for k, v in series.items()} for combo, series in daily_combos.items()
+        },
+    })
+
+
+STAGES = {
+    "momentum-cv": momentum_cv,
+    "momentum-q": momentum_q,
+    "basis-grid": basis_grid,
+    "in-sample-baseline": in_sample_baseline,
+}
 
 
 def main() -> int:

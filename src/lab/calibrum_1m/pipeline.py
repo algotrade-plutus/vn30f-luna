@@ -4,11 +4,13 @@ from __future__ import annotations
 import tomllib
 from dataclasses import dataclass
 from datetime import date
+from decimal import Decimal
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
+from plutus.evaluation.metrics import maximum_drawdown, sharpe_ratio
 from plutus.market.margin import vsd_initial_margin
 from src.adapters.data.dnse_minute_bars import (
     bars_10m,
@@ -27,6 +29,9 @@ from .grid import completes_bar, crosses_roll, expiry_sessions, last_row_of_cont
 
 WORKSPACE = Path(__file__).resolve().parents[3]
 CONFIG_PATH = WORKSPACE / "config" / "research.toml"
+# Plutus's Vietnamese-market defaults (plutus.evaluation): 3% risk-free rate, 250 sessions a year.
+RISK_FREE_RATE = Decimal("0.03")
+TRADING_DAYS = 250
 
 
 def load_config(path: Path = CONFIG_PATH) -> dict:
@@ -123,6 +128,13 @@ def vote(*sleeves: np.ndarray) -> np.ndarray:
     return np.sign(np.sum(sleeves, axis=0))
 
 
+def account_returns(daily_points: pd.Series, capital: float, point_vnd: float) -> list[Decimal]:
+    """Daily returns of an account that starts with ``capital`` and keeps its profit and loss."""
+    pnl = daily_points.to_numpy(float) * point_vnd
+    equity_before = capital + np.r_[0.0, np.cumsum(pnl)[:-1]]
+    return [Decimal(str(value)) for value in pnl / equity_before]
+
+
 def score_periods(
     market: Market,
     position: np.ndarray,
@@ -149,17 +161,20 @@ def score_periods(
         if part.empty:
             continue
         daily = part.groupby("SessionDate")["NetGain"].sum()
+        returns = account_returns(daily, capital, point_vnd)
         pnl = part["NetGain"].cumsum()
         notional = float((part["Close"] * part["PositionChange"]).sum())
         net = float(part["NetGain"].sum())
         in_window = trades[(trades["EntryDatetime"] >= start) & (trades["EntryDatetime"] < end + pd.Timedelta(days=1))]
+        sharpe = sharpe_ratio(returns, risk_free_rate=RISK_FREE_RATE, annualization_factor=TRADING_DAYS)
+        drawdown = maximum_drawdown(returns)
         rows[name] = {
             "net_points": net,
             "net_million_vnd": net * point_vnd / 1e6,
             "return_pct": net * point_vnd / capital * 100.0,
-            "sharpe": float(daily.mean() / daily.std(ddof=1) * np.sqrt(252)) if daily.std(ddof=1) > 0 else 0.0,
+            "sharpe": float(sharpe) if sharpe is not None else float("nan"),
             "mdd_points": float((pnl.cummax() - pnl).max()),
-            "mdd_pct": float((pnl.cummax() - pnl).max()) * point_vnd / capital * 100.0,
+            "mdd_pct": -float(drawdown) * 100.0 if drawdown is not None else float("nan"),
             "margin_bps": net / notional * 1e4 if notional else float("nan"),
             "trades": int(len(in_window)),
             "hit_rate": float((in_window["NetPoints"] > 0).mean()) if len(in_window) else float("nan"),

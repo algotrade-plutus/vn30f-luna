@@ -5,7 +5,8 @@ Theo [PROTOCOL.md](PROTOCOL.md). Chạy bằng `scripts/run_calibrum_1m.py` (cá
 chưa chạm valid hay OOS.
 
 Quy ước chung: in-sample 01/06/2020 – 31/12/2022, 1 hợp đồng trên 100 triệu đồng, chi phí 0,4 điểm mỗi chiều, khớp tại
-close nến tín hiệu, stop xét ở close từng nến gốc. 1 điểm = 100.000 đồng = 0,1% vốn.
+close nến tín hiệu, stop xét ở close từng nến gốc. 1 điểm = 100.000 đồng = 0,1% vốn. Sharpe và MDD (%) theo
+`plutus.evaluation.metrics`: √250, lãi suất phi rủi ro 3%, trên lợi suất ngày của tài khoản giữ lãi lỗ (protocol mục 3.6).
 
 ## 1. Momentum
 
@@ -52,12 +53,12 @@ tính được xác nhận; ý "lực đi tiếp yếu dần khi giá xa VWAP" b
 
 | q | θ | Lãi net (điểm) | Sharpe | MDD (điểm) | Margin (bps) | Lệnh | Hit rate | Chi phí (điểm) | Có vị thế |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| 0,7 | 0,127 | 899,6 | 1,62 | 147,1 | 6,5 | 566 | 43% | 453,2 | 50% |
-| 0,8 | 0,166 | 834,1 | 1,63 | 145,9 | 7,6 | 451 | 46% | 361,2 | 39% |
-| **0,9** | **0,232** | **731,5** | **1,73** | 151,9 | 10,7 | 279 | 50% | 223,2 | 24% |
+| 0,7 | 0,127 | 899,6 | 1,54 | 147,1 | 6,5 | 566 | 43% | 453,2 | 50% |
+| 0,8 | 0,166 | 834,1 | 1,56 | 145,9 | 7,6 | 451 | 46% | 361,2 | 39% |
+| **0,9** | **0,232** | **731,5** | **1,57** | 151,9 | 10,7 | 279 | 50% | 223,2 | 24% |
 
 Chọn **q = 0,9**. Cả ba mức đều lãi sau chi phí, nên ngưỡng nằm trong vùng ổn định. Với q = 0,9: lãi 73,2 triệu đồng
-(73,2% vốn trong 2,6 năm), MDD 15,2% vốn, mức sử dụng ký quỹ cao nhất 20,5%.
+(73,2% vốn trong 2,6 năm), mức sử dụng ký quỹ cao nhất 20,5%.
 
 ## 2. Basis
 
@@ -65,21 +66,21 @@ Sharpe sau chi phí, cửa sổ W (hàng) × ngưỡng vào z_in (cột):
 
 | W | 1,00 | 1,25 | 1,50 | 1,75 | 2,00 |
 |---|---:|---:|---:|---:|---:|
-| 20 | 0,29 | 0,19 | 0,28 | 0,33 | 0,25 |
-| 30 | −0,16 | 0,61 | 0,61 | 0,53 | −0,02 |
-| 40 | 0,56 | 0,94 | 0,81 | 0,75 | 0,64 |
-| 50 | 1,15 | 0,94 | 1,20 | 1,34 | 0,87 |
-| 60 | 0,89 | 0,99 | **1,11** | 1,37 | 1,03 |
+| 20 | 0,28 | 0,18 | 0,24 | 0,27 | 0,17 |
+| 30 | −0,15 | 0,54 | 0,55 | 0,44 | −0,07 |
+| 40 | 0,49 | 0,84 | 0,71 | 0,63 | 0,50 |
+| 50 | 0,98 | 0,82 | 1,09 | 1,18 | 0,70 |
+| 60 | 0,74 | 0,88 | **0,99** | 1,23 | 0,88 |
 
 Điểm vùng 3 × 3 (trung bình Sharpe của ô và các ô kề):
 
 | W | 1,00 | 1,25 | 1,50 | 1,75 | 2,00 |
 |---|---:|---:|---:|---:|---:|
-| 20 | 0,23 | 0,30 | 0,42 | 0,33 | 0,27 |
-| 30 | 0,41 | 0,46 | 0,56 | 0,47 | 0,42 |
-| 40 | 0,67 | 0,74 | 0,86 | 0,75 | 0,69 |
-| 50 | 0,91 | 0,95 | 1,05 | 1,01 | 1,00 |
-| 60 | 0,99 | 1,05 | **1,16** | 1,15 | 1,15 |
+| 20 | 0,21 | 0,27 | 0,37 | 0,27 | 0,20 |
+| 30 | 0,36 | 0,41 | 0,49 | 0,38 | 0,32 |
+| 40 | 0,58 | 0,65 | 0,75 | 0,64 | 0,56 |
+| 50 | 0,79 | 0,84 | 0,93 | 0,88 | 0,85 |
+| 60 | 0,85 | 0,91 | **1,03** | 1,01 | 1,00 |
 
 Lãi net (điểm):
 
@@ -91,7 +92,7 @@ Lãi net (điểm):
 | 50 | 642 | 522 | 624 | 663 | 367 |
 | 60 | 478 | 542 | 571 | 659 | 445 |
 
-Chọn **W = 60, z_in = 1,5**: lãi 570,7 điểm (57,1 triệu đồng), Sharpe 1,11, MDD 184 điểm (18,4% vốn), margin 14,5 bps,
+Chọn **W = 60, z_in = 1,5**: lãi 570,7 điểm (57,1 triệu đồng), Sharpe 0,99, MDD 184 điểm, margin 14,5 bps,
 161 lệnh, hit rate 42%, chi phí 128,4 điểm, có vị thế 50% thời gian, ký quỹ cao nhất 20,4%. Cả 6 ô kề đều lãi sau chi
 phí.
 
@@ -107,11 +108,52 @@ Kiểm tra cơ chế với ô đã chọn:
 
 Giữ tham số của repo calendar-mtw-vn30f, không tối ưu lại (protocol mục 3.4).
 
-## 4. Chưa chạy
+## 4. Bước 4: 7 tổ hợp với tham số ban đầu
 
-7 tổ hợp trên in-sample và valid; B2 và B6 trên valid; chọn tổ hợp cuối; OOS 1 và OOS 2.
+Stage `in-sample-baseline`, chỉ nạp dữ liệu tới 31/12/2022. Tham số ban đầu (protocol mục 9): Calendar MTW như repo
+gốc; Basis W = 40, z_in = 1,5; Momentum λ = 1, q = 0,8 (θ = 0,166). Gộp bằng vote, 1 hợp đồng trên 100 triệu đồng.
 
-## 5. Ghi chú vận hành
+| Tổ hợp | Lãi net (điểm) | Lợi suất | Sharpe | MDD | Margin (bps) | Lệnh | Hit rate | Có vị thế |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| C | 1.215,4 | 121,5% | 1,93 | 17,2% | 24,2 | 205 | 63% | 53% |
+| B | 434,4 | 43,4% | 0,71 | 20,9% | 8,6 | 209 | 41% | 57% |
+| M | 834,1 | 83,4% | 1,56 | 8,2% | 7,6 | 451 | 46% | 39% |
+| C+B | 1.193,1 | 119,3% | 1,58 | 30,3% | 16,1 | 304 | 55% | 61% |
+| C+M | 1.647,4 | 164,7% | 2,54 | 9,9% | 14,9 | 452 | 50% | 66% |
+| B+M | 1.074,6 | 107,5% | 1,74 | 8,1% | 9,6 | 462 | 44% | 65% |
+| **C+B+M** | **1.739,4** | **173,9%** | **2,59** | 12,7% | 14,6 | 488 | 48% | 67% |
+
+Lợi suất tính trên 100 triệu đồng, cả in-sample (2,6 năm). Mức sử dụng ký quỹ cao nhất khoảng 20,5% ở mọi tổ hợp.
+
+Lãi net theo năm (điểm; 2020 là 7 tháng):
+
+| Tổ hợp | 2020 | 2021 | 2022 |
+|---|---:|---:|---:|
+| C | 208,6 | 303,5 | 703,3 |
+| B | 66,8 | 321,9 | 45,7 |
+| M | 158,1 | 375,5 | 300,5 |
+| C+B | 80,0 | 458,0 | 655,1 |
+| C+M | 290,3 | 617,2 | 739,9 |
+| B+M | 209,8 | 568,9 | 295,9 |
+| C+B+M | 319,7 | 703,9 | 715,8 |
+
+Tương quan lãi lỗ theo ngày giữa các sleeve:
+
+| | C | B | M |
+|---|---:|---:|---:|
+| C | 1,00 | −0,09 | +0,15 |
+| B | −0,09 | 1,00 | −0,07 |
+| M | +0,15 | −0,07 | 1,00 |
+
+Mọi tổ hợp đều lãi ở cả ba năm. Cả ba gộp lại có Sharpe cao nhất (2,59), trên Sharpe của sleeve đứng riêng tốt nhất
+(Calendar, 1,93). MDD của C+B (30,3%) lớn hơn của từng sleeve: khi hai sleeve bất đồng thì vote đứng ngoài, nên C+B bỏ
+lỡ phần lãi của sleeve còn lại mà vẫn giữ các lần cả hai cùng sai. Tương quan giữa ba sleeve đều gần 0.
+
+## 5. Chưa chạy
+
+7 tổ hợp trên valid; B2 và B6 trên valid; chọn tổ hợp cuối; OOS 1 và OOS 2.
+
+## 6. Ghi chú vận hành
 
 Phiên đáo hạn 16/07/2020 không có trong dữ liệu DNSE ở mọi khung, nên luật đứng ngoài phiên đáo hạn không kích hoạt
 được tháng đó. Engine đóng mọi vị thế ở nến cuối của mỗi hợp đồng và reset trạng thái sleeve, để không vị thế nào vắt

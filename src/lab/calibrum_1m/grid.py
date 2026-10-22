@@ -25,7 +25,7 @@ def spread_to_minutes(labels: pd.Series, by_label: pd.Series) -> np.ndarray:
     done = completes_bar(labels)
     values = pd.Series(np.nan, index=labels.index)
     values[done] = labels[done].map(by_label).to_numpy()
-    return values.ffill().fillna(0.0).to_numpy()
+    return values.ffill().fillna(0.0).to_numpy(copy=True)
 
 
 def expiry_sessions(stamps: pd.Series) -> np.ndarray:

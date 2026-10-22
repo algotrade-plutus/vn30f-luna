@@ -138,9 +138,11 @@ chọn tổ hợp ít sleeve hơn.
 
 ### 3.6 Chỉ số
 
-Lãi lỗ theo ngày bằng VND trên vốn cố định. Sharpe = trung bình / độ lệch chuẩn lợi suất ngày × √252, không trừ lãi suất
-phi rủi ro. Kèm: lãi net, MDD (%), margin sau chi phí (bps trên giá trị giao dịch), số lệnh, hit rate, mức sử dụng ký
-quỹ cao nhất (ký quỹ ban đầu theo ngày ÷ vốn), lãi theo năm.
+Số hợp đồng cố định; tài khoản bắt đầu với 100 triệu đồng mỗi hợp đồng và giữ lãi lỗ, lợi suất ngày
+`r_t = PnL_t / vốn đầu ngày`. Sharpe và MDD theo `plutus.evaluation.metrics` với mặc định thị trường Việt Nam:
+`Sharpe = √250 × (trung bình r − 3% / 250) / độ lệch chuẩn r`, MDD = mức giảm lớn nhất từ đỉnh của vốn. Kèm: lãi net,
+margin sau chi phí (bps trên giá trị giao dịch), số lệnh, hit rate, mức sử dụng ký quỹ cao nhất (ký quỹ ban đầu theo
+ngày ÷ vốn), lãi theo năm. (Sửa ngày 22/10/2026, xem mục 9.)
 
 ## 4. Dự đoán bác bỏ
 
@@ -211,3 +213,15 @@ quan dương với y (0,11 đến 0,15), và x1 tương quan 0,89 với x2. Quá
 B3 gộp ý phụ đó vào điều kiện loại cả sleeve, phạt quá tay so với điều nó kiểm tra. Đã sửa: bỏ ý phụ khỏi giả thuyết ở
 mục 1, ghi kết quả trên như một phát hiện, và B3 không còn là điều kiện loại. Momentum vẫn phải qua B2 và B6 trên valid
 mới được vào tổ hợp cuối. λ, hệ số và các lưới khác giữ nguyên.
+
+**22/10/2026, sau bước chọn q và lưới Basis (đổi thước đo, không tính lần thử).** Theo quyết định của người nghiên cứu,
+Sharpe đổi từ `√252 × trung bình / độ lệch chuẩn của lãi lỗ ngày, không trừ lãi suất phi rủi ro` sang hàm của Plutus
+(`√250`, lãi suất phi rủi ro 3%, trên lợi suất ngày của vốn), để khớp với cách Plutus báo cáo. Hai bước chọn đã chạy lại
+với thước đo mới và ra cùng lựa chọn: q = 0,9 (Sharpe 1,54 / 1,56 / 1,57 cho q = 0,7 / 0,8 / 0,9) và ô Basis W = 60,
+z_in = 1,5 (Sharpe 0,99, điểm vùng 1,03 vẫn cao nhất). Vì không lựa chọn nào đổi, việc đổi thước đo không tạo thêm lần
+thử.
+
+**22/10/2026, tham số ban đầu cho bước 4.** Kết quả in-sample của bước 4 chạy với tham số ban đầu, trước tối ưu: Calendar
+MTW giữ tham số của repo calendar-mtw-vn30f; Basis W = 40, z_in = 1,5 (tham số của bản Calibrum đóng băng); Momentum
+λ = 1 và q = 0,8 (giá trị giữa của hai lưới). Đây là điểm xuất phát để báo cáo, không phải một lựa chọn, nên không tính
+lần thử; các giá trị đều nằm trong lưới đã khoá ở mục 6.
