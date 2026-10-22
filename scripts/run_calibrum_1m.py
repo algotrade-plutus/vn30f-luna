@@ -402,7 +402,42 @@ def oos2(config: dict) -> None:
     _out_of_sample(config, "oos2", requires="oos1")
 
 
+def benchmarks(config: dict) -> None:
+    """Buy-and-hold references for the charts, one contract's worth, in daily points (no selection uses them).
+
+    VN30F1M: one contract held throughout and rolled at each expiry, measured on the
+    additive roll-adjusted series so the roll gap is not booked as profit; the entry
+    and each roll pay the strategy's cost. VN30: the index move per point, no cost.
+    """
+    windows = pipeline.periods(config)
+    start = windows["in_sample"][0]
+    market = pipeline.load_market(pd.Timestamp("2100-01-01").date())
+    cost = config["costs"]["points_per_contract_per_side"]
+
+    futures = market.futures_30m_adjusted.assign(Session=market.futures_30m_adjusted["Datetime"].dt.normalize())
+    futures = futures[futures["Session"] >= start]
+    daily_futures = futures.groupby("Session")["Close"].last().diff().fillna(0.0)
+    rolls = futures.groupby("Session")["Contract"].last().ne(futures.groupby("Session")["Contract"].last().shift())
+    daily_futures -= rolls.astype(float) * 2 * cost
+    daily_futures.iloc[0] -= cost
+
+    index = market.index_30m.assign(Session=market.index_30m["Datetime"].dt.normalize())
+    index = index[index["Session"] >= start]
+    daily_index = index.groupby("Session")["Close"].last().diff().fillna(0.0)
+
+    print(f"VN30F1M buy and hold: {daily_futures.sum() * 0.1:+.1f}M VND, rolls {int(rolls.sum()) - 1}")
+    print(f"VN30 index buy and hold: {daily_index.sum() * 0.1:+.1f}M VND")
+    _save("benchmarks", {
+        "note": "one contract's worth, daily points; VN30F1M rolled on the additive adjusted series with costs",
+        "daily_net_points": {
+            "VN30F1M": {str(k.date()): float(v) for k, v in daily_futures.items()},
+            "VN30": {str(k.date()): float(v) for k, v in daily_index.items()},
+        },
+    })
+
+
 STAGES = {
+    "benchmarks": benchmarks,
     "momentum-cv": momentum_cv,
     "momentum-q": momentum_q,
     "basis-grid": basis_grid,

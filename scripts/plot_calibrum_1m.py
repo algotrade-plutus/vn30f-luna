@@ -10,7 +10,9 @@
 Each figure is written at twice its slide size. Two panels share one y-axis:
 the sleeves alone, then the pairs and all three. Colours are the dataviz
 reference palette, checked all-pairs per panel on the deck surface; every line
-is labelled at its end.
+is labelled at its end. Buy-and-hold VN30F1M and VN30 (one contract's worth,
+reports/calibrum_1m/benchmarks.json) are drawn in grey on both panels, rebased
+to zero at the figure's first session.
 """
 from __future__ import annotations
 
@@ -34,7 +36,8 @@ PANELS = (
     ("Each sleeve alone", {"C": "#2a78d6", "B": "#eb6834", "M": "#1baf7a"}),
     ("Pairs and all three", {"C+B": "#e87ba4", "C+M": "#008300", "B+M": "#eda100", "C+B+M": "#6250d6"}),
 )
-NAMES = {"C": "Calendar", "B": "Basis", "M": "Momentum"}
+NAMES = {"C": "Calendar", "B": "Basis", "M": "Momentum", "VN30F1M": "VN30F1M hold", "VN30": "VN30 hold"}
+BENCHMARKS = {"VN30F1M": (INK, (0, (1.5, 2.5))), "VN30": (MUTED, (0, (6, 3)))}
 PERIODS = (
     ("In-sample", "2020-06-01"),
     ("Valid", "2023-01-01"),
@@ -52,6 +55,18 @@ def _curves(source: Path) -> dict[str, pd.Series]:
     }
 
 
+def _benchmarks(first: pd.Timestamp, last: pd.Timestamp) -> dict[str, pd.Series]:
+    source = REPORTS / "benchmarks.json"
+    if not source.exists():
+        return {}
+    payload = json.loads(source.read_text(encoding="utf-8"))["daily_net_points"]
+    out = {}
+    for name, days in payload.items():
+        daily = pd.Series(days).rename(index=pd.Timestamp).sort_index()
+        out[name] = daily[(daily.index >= first) & (daily.index <= last)].cumsum() * MILLION_VND_PER_POINT
+    return out
+
+
 def _label_positions(ends: dict[str, float], gap: float) -> dict[str, float]:
     """Spread end labels apart by at least ``gap`` while keeping their order."""
     placed: dict[str, float] = {}
@@ -65,11 +80,13 @@ def _label_positions(ends: dict[str, float], gap: float) -> dict[str, float]:
 
 def draw(source: Path, out: Path, size_px: tuple[int, int], mark_periods: bool) -> Path:
     curves = _curves(source)
-    top = max(curve.max() for curve in curves.values())
-    bottom = min(0.0, min(curve.min() for curve in curves.values()))
-    span = top - bottom
     first = min(curve.index[0] for curve in curves.values())
     last = max(curve.index[-1] for curve in curves.values())
+    references = _benchmarks(first, last)
+    every = [*curves.values(), *references.values()]
+    top = max(curve.max() for curve in every)
+    bottom = min(0.0, min(curve.min() for curve in every))
+    span = top - bottom
 
     plt.rcParams.update({"font.family": "Arial", "font.size": 17, "axes.edgecolor": GRID})
     fig, axes = plt.subplots(1, 2, figsize=(2 * size_px[0] / DPI, 2 * size_px[1] / DPI), sharey=True)
@@ -87,15 +104,20 @@ def draw(source: Path, out: Path, size_px: tuple[int, int], mark_periods: bool) 
             curve = curves[combo]
             ax.plot(curve.index, curve.to_numpy(), color=colour, linewidth=3.2 if combo == "C+B+M" else 2.2,
                     solid_capstyle="round")
-        ends = {combo: curves[combo].iloc[-1] for combo in colours}
+        for name, (colour, dash) in BENCHMARKS.items():
+            if name in references:
+                ax.plot(references[name].index, references[name].to_numpy(), color=colour, linewidth=1.8,
+                        linestyle=dash)
+        shown = {**{combo: curves[combo] for combo in colours}, **references}
+        ends = {name: series.iloc[-1] for name, series in shown.items()}
         for combo, y in _label_positions(ends, gap=0.065 * span).items():
             ax.annotate(
                 f"{NAMES.get(combo, combo)}  {ends[combo]:+.0f}M",
-                xy=(curves[combo].index[-1], y),
+                xy=(shown[combo].index[-1], y),
                 xytext=(8, 0),
                 textcoords="offset points",
                 va="center",
-                color=INK,
+                color=MUTED if combo in BENCHMARKS else INK,
                 fontweight="bold" if combo == "C+B+M" else "normal",
                 annotation_clip=False,
             )
