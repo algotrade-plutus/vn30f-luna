@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 from datetime import datetime
+from pathlib import Path
 
 import pandas as pd
 import pytest
 
 from src.adapters.strategies.calibrum_signal_source import (
+    _core_calendar_positions,
+    _load_frozen_module,
     _ridge_with_roll_guard,
     apply_session_rules,
     pre_shift_positions,
@@ -92,6 +95,33 @@ def test_ridge_roll_guard_restarts_each_contract_and_zeros_expiry() -> None:
 
     assert FrozenRidge.calls == [2, 1]
     assert positions.tolist() == [0, 0, 1]
+
+
+def test_core_calendar_shorts_every_gap_down_monday_and_longs_midweek() -> None:
+    pytest.importorskip("torch")
+    frozen = _load_frozen_module(Path(__file__).resolve().parents[1] / "PS_V30_Vien_Calibrum")
+    # 2024-04-01 is a Monday that opens the month; 2024-04-08 opens above the prior close.
+    stamps = [
+        "2024-03-29 14:30",
+        "2024-04-01 09:00", "2024-04-01 14:00", "2024-04-01 14:30",
+        "2024-04-02 09:00", "2024-04-02 14:30",
+        "2024-04-05 14:30",
+        "2024-04-08 09:00", "2024-04-08 14:00",
+    ]
+    opens = [100.0, 99.0, 98.0, 98.0, 98.0, 98.0, 100.0, 103.0, 103.0]
+    frame = pd.DataFrame(
+        {"Datetime": pd.to_datetime(stamps), "Open": opens, "Close": opens}
+    )
+    parameters = {
+        "calendar_long_dows": [1, 2],
+        "calendar_use_monday_short": True,
+        "calendar_monday_max_gap": 0.0,
+        "calendar_session_end": "14:30",
+    }
+
+    positions = _core_calendar_positions(frozen, frame, parameters)
+
+    assert positions.tolist() == [0, -1, -1, 1, 1, 1, 0, 0, 0]
 
 
 def test_session_rules_repeat_1400_at_atc_and_flatten_expiry() -> None:

@@ -281,6 +281,48 @@ def _ridge_with_roll_guard(
     return guarded
 
 
+_CALENDAR_LEGS_OFF = {
+    "calendar_use_month_start": False,
+    "calendar_use_preholiday": False,
+    "calendar_use_monday_short": False,
+    "calendar_use_expiry_thursday": False,
+}
+
+
+def _core_calendar_positions(
+    frozen: types.ModuleType,
+    frame: pd.DataFrame,
+    parameters: dict[str, Any],
+) -> np.ndarray:
+    """Calendar with its two core legs: short Monday, long the ``D_long`` days.
+
+    The frozen sleeve runs with every switchable leg off, which leaves the
+    weekday longs.  The Monday short is rebuilt here because the frozen one
+    skips Mondays that open a month or precede a holiday, a distinction that
+    belongs to legs this research does not use.
+    """
+
+    position = np.asarray(
+        frozen._calendar_positions(frame, {**parameters, **_CALENDAR_LEGS_OFF})
+    )
+    if not bool(parameters.get("calendar_use_monday_short", True)):
+        return position.astype(int)
+    stamps = frame["Datetime"].reset_index(drop=True)
+    sessions = stamps.dt.normalize()
+    session_end = str(parameters.get("calendar_session_end", "14:30"))
+    at_session_end = (stamps.dt.strftime("%H:%M") >= session_end).to_numpy()
+    monday = (sessions.dt.dayofweek == 0).to_numpy()
+    max_gap = parameters.get("calendar_monday_max_gap", 0.0)
+    if max_gap is None:
+        gap_allowed = np.ones(len(stamps), dtype=bool)
+    else:
+        opens = frame["Open"].reset_index(drop=True).groupby(sessions).transform("first")
+        previous_close = frame["Close"].reset_index(drop=True).groupby(sessions).last().shift(1)
+        gap_allowed = (opens - sessions.map(previous_close) <= float(max_gap)).to_numpy()
+    short = monday & ~at_session_end & gap_allowed & (position == 0)
+    return np.where(short, -1, position).astype(int)
+
+
 def generate_calibrum_position_stream(
     futures: pd.DataFrame,
     spot: pd.DataFrame,
@@ -370,7 +412,7 @@ def generate_calibrum_position_stream(
             if shinji_roll_guard
             else frozen._shinji_positions(shinji_input, clean_spot, parameters)
         )
-    calendar = frozen._calendar_positions(clean_futures, parameters)
+    calendar = _core_calendar_positions(frozen, clean_futures, parameters)
     if not (len(ridge) == len(shinji) == len(calendar) == len(clean_futures)):
         raise RuntimeError("Calibrum sleeve lengths are not aligned")
     weights = np.asarray(model["ensemble_weights"])
@@ -454,6 +496,7 @@ def generate_calibrum_position_stream(
             "shinji": use_shinji,
             "shinji_roll_guard": shinji_roll_guard,
             "calendar": True,
+            "calendar_legs": "core: Monday short, D_long days long",
         },
         "shinji_sessions_without_spot": sessions_without_spot,
         "expiry_flat": expiry_flat,
