@@ -170,15 +170,14 @@ cắt dữ liệu ở 31/12/2022 nên bỏ lệnh đó.
 
 - **B2 không xảy ra**: IC của score Momentum trên valid là +0,071.
 - **B6 không xảy ra** với cả ba sleeve: C +60,2, B +49,4, M +13,7 triệu đồng. Không sleeve nào bị loại.
-- **Chọn tổ hợp cuối theo luật mục 3.5**: cả 7 tổ hợp đều lãi ở valid nên đều là ứng viên. Sharpe in-sample cao nhất là
-  C+B+M (2,765); C+M (2,750) chênh dưới 0,2 và ít sleeve hơn, nên **tổ hợp cuối là C+M**.
-
-Luật chỉ dùng valid để lọc (dương hay không), còn xếp hạng theo in-sample. Trên valid, C+B+M có Sharpe cao hơn C+M
-(2,03 so với 1,76), nhưng luật đã khoá trước nên lựa chọn giữ là C+M. Kết quả này được commit trước khi mở OOS 1.
+- Luật khoá ở mục 3.5 (xếp theo Sharpe in-sample, chênh dưới 0,2 thì ít sleeve hơn) cho **C+M**: C+B+M 2,765 và C+M
+  2,750 chênh 0,015.
+- **Sửa luật sau khi xem valid** (protocol mục 9, +1 lần thử): chọn tổ hợp có **Sharpe valid cao nhất**. **Tổ hợp cuối là
+  C+B+M** (Sharpe valid 2,03; kế đến C+B 1,94, C+M 1,76). Việc sửa và lựa chọn được commit trước khi mở OOS 1.
 
 ## Chưa chạy
 
-OOS 1 (2025) và OOS 2 (2026), mỗi khoảng mở một lần; DSR với N ≥ 417.
+OOS 1 (2025) và OOS 2 (2026), mỗi khoảng mở một lần; DSR với N ≥ 418.
 
 ## 6. Ghi chú vận hành
 

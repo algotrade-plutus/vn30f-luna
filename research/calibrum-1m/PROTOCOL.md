@@ -225,3 +225,10 @@ thử.
 MTW giữ tham số của repo calendar-mtw-vn30f; Basis W = 40, z_in = 1,5 (tham số của bản Calibrum đóng băng); Momentum
 λ = 1 và q = 0,8 (giá trị giữa của hai lưới). Đây là điểm xuất phát để báo cáo, không phải một lựa chọn, nên không tính
 lần thử; các giá trị đều nằm trong lưới đã khoá ở mục 6.
+
+**22/10/2026, sau khi mở valid (SỬA LUẬT, +1 lần thử, N ≥ 418).** Luật mục 3.5 xếp hạng tổ hợp theo Sharpe in-sample và
+chỉ dùng valid để lọc; nó chọn C+M (Sharpe in-sample 2,750 so với 2,765 của C+B+M). Người nghiên cứu đổi luật thành:
+trong các tổ hợp lãi sau chi phí ở valid, chọn tổ hợp có **Sharpe valid cao nhất**, không có phụ luật hoà. Lý do: valid là
+khoảng dùng để chọn mô hình, và lựa chọn vẫn được chấm trên OOS 1 và OOS 2 chưa mở. Luật mới chọn C+B+M (Sharpe valid
+2,03). Sửa sau khi thấy valid nên valid không còn là phép thử độc lập cho tổ hợp cuối; OOS 1 và OOS 2 vẫn chưa bị nhìn.
+Cả hai lựa chọn (C+B+M theo luật mới, C+M theo luật cũ) đều được báo cáo trên OOS.

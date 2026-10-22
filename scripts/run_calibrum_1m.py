@@ -333,11 +333,14 @@ def valid(config: dict) -> None:
         combo for combo in COMBOS
         if valid_net[combo] > 0.0 and not excluded & set(combo.split("+"))
     ]
-    selected = None
+    # Amended 22/10/2026 after the first look at valid (PROTOCOL.md section 9): the highest Sharpe on valid.
+    valid_sharpe = table[table["period"] == "valid"].set_index("combo")["sharpe"]
+    selected = max(candidates, key=lambda c: valid_sharpe[c]) if candidates else None
+    selected_by_locked_rule = None
     if candidates:
         best = max(in_sample_sharpe[c] for c in candidates)
         close = [c for c in candidates if best - in_sample_sharpe[c] < 0.2]
-        selected = min(close, key=lambda c: (len(c.split("+")), -in_sample_sharpe[c]))
+        selected_by_locked_rule = min(close, key=lambda c: (len(c.split("+")), -in_sample_sharpe[c]))
 
     for period in scoring:
         _print_period(table, period)
@@ -346,7 +349,7 @@ def valid(config: dict) -> None:
     for name in "CBM":
         print(f"B6 {name} valid net {valid_net[name] * 0.1:+.1f}M VND -> {'FALSIFIED' if falsified[f'B6_{name}'] else 'not falsified'}")
     print(f"excluded sleeves: {sorted(excluded) or 'none'}; candidates: {candidates}")
-    print(f"selected final combination: {selected}")
+    print(f"selected final combination (highest valid Sharpe): {selected}; locked rule would give {selected_by_locked_rule}")
     _save("valid", {
         "parameters": params,
         "combos": table.to_dict("records"),
@@ -355,6 +358,7 @@ def valid(config: dict) -> None:
         "excluded_sleeves": sorted(excluded),
         "candidates": candidates,
         "selected": selected,
+        "selected_by_locked_rule": selected_by_locked_rule,
         "correlation": {period: _correlation(daily, *windows[period]) for period in scoring},
         "daily_net_points": {c: {str(k.date()): float(v) for k, v in s.items()} for c, s in daily.items()},
     })
