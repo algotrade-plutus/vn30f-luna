@@ -254,11 +254,158 @@ def in_sample_baseline(config: dict) -> None:
     })
 
 
+def _load(name: str) -> dict:
+    return json.loads((OUT / f"{name}.json").read_text(encoding="utf-8"))
+
+
+def _optimised_sleeves(market: pipeline.Market) -> tuple[dict[str, np.ndarray], dict]:
+    """The three sleeves with the parameters chosen in step 5 on in-sample."""
+    model = _model()
+    threshold = _load("momentum_threshold")
+    grid = _load("basis_grid")
+    params = {
+        "momentum_lambda": model.lam,
+        "momentum_q": threshold["q"],
+        "momentum_theta": threshold["theta"],
+        "basis_window": grid["window"],
+        "basis_z_entry": grid["z_entry"],
+    }
+    sleeves = {
+        "C": pipeline.calendar_mtw_positions(market),
+        "B": pipeline.basis_positions(market, params["basis_window"], params["basis_z_entry"]),
+        "M": pipeline.momentum_positions(market, model, params["momentum_theta"]),
+    }
+    return sleeves, params
+
+
+def _score_combos(market, sleeves, windows, config) -> tuple[pd.DataFrame, dict[str, pd.Series]]:
+    """Metrics of the seven combinations per window, and daily net points over all the windows."""
+    first, last = min(w[0] for w in windows.values()), max(w[1] for w in windows.values())
+    rows, daily = [], {}
+    for combo in COMBOS:
+        position = pipeline.vote(*(sleeves[name] for name in combo.split("+")))
+        metrics = pipeline.score_periods(market, position, windows, config)
+        for period, values in metrics.iterrows():
+            rows.append({"combo": combo, "period": period, **values.to_dict()})
+        daily[combo] = _daily_net(market, position, config, first, last)
+    return pd.DataFrame(rows), daily
+
+
+def _momentum_ic(market: pipeline.Market, start: pd.Timestamp, end: pd.Timestamp) -> float:
+    """Spearman IC of the Momentum score with its 2-bar target inside one window."""
+    frame = momentum.feature_frame(market.futures_30m_adjusted)
+    frame["score"] = _model().score(frame[list(momentum.FEATURES)].to_numpy(float))
+    frame = frame[(frame["Datetime"] >= start) & (frame["Datetime"] < end + pd.Timedelta(days=1))]
+    frame = frame.dropna(subset=["score", "y"])
+    return float(frame["score"].rank().corr(frame["y"].rank()))
+
+
+def _correlation(daily: dict[str, pd.Series], start: pd.Timestamp, end: pd.Timestamp) -> dict:
+    sleeves = pd.DataFrame({name: daily[name] for name in "CBM"})
+    sleeves = sleeves[(sleeves.index >= start) & (sleeves.index <= end)]
+    return sleeves.corr().round(4).to_dict()
+
+
+def _print_period(table: pd.DataFrame, period: str) -> None:
+    columns = ["net_million_vnd", "sharpe", "mdd_pct", "margin_bps", "trades", "hit_rate", "exposure"]
+    print(f"\n{period}:")
+    print(table[table["period"] == period].set_index("combo")[columns].round(3).to_string())
+
+
+def valid(config: dict) -> None:
+    """Step 6, first look: valid 2023-2024. B2, B6 and the choice of the final combination (section 3.5)."""
+    windows = pipeline.periods(config)
+    scoring = {name: windows[name] for name in ("in_sample", "valid")}
+    market = pipeline.load_market(windows["valid"][1].date())
+    sleeves, params = _optimised_sleeves(market)
+    table, daily = _score_combos(market, sleeves, scoring, config)
+
+    ic = _momentum_ic(market, *windows["valid"])
+    valid_net = table[table["period"] == "valid"].set_index("combo")["net_points"]
+    in_sample_sharpe = table[table["period"] == "in_sample"].set_index("combo")["sharpe"]
+    falsified = {"B2_momentum_ic": ic <= 0.0}
+    for name in "CBM":
+        falsified[f"B6_{name}"] = bool(valid_net[name] <= 0.0)
+    excluded = {name for name in "CBM" if falsified[f"B6_{name}"]}
+    if falsified["B2_momentum_ic"]:
+        excluded.add("M")
+    candidates = [
+        combo for combo in COMBOS
+        if valid_net[combo] > 0.0 and not excluded & set(combo.split("+"))
+    ]
+    selected = None
+    if candidates:
+        best = max(in_sample_sharpe[c] for c in candidates)
+        close = [c for c in candidates if best - in_sample_sharpe[c] < 0.2]
+        selected = min(close, key=lambda c: (len(c.split("+")), -in_sample_sharpe[c]))
+
+    for period in scoring:
+        _print_period(table, period)
+    print(f"\nparameters: {params}")
+    print(f"B2 Momentum IC on valid: {ic:.4f} -> {'FALSIFIED' if falsified['B2_momentum_ic'] else 'not falsified'}")
+    for name in "CBM":
+        print(f"B6 {name} valid net {valid_net[name] * 0.1:+.1f}M VND -> {'FALSIFIED' if falsified[f'B6_{name}'] else 'not falsified'}")
+    print(f"excluded sleeves: {sorted(excluded) or 'none'}; candidates: {candidates}")
+    print(f"selected final combination: {selected}")
+    _save("valid", {
+        "parameters": params,
+        "combos": table.to_dict("records"),
+        "momentum_ic_valid": ic,
+        "falsified": falsified,
+        "excluded_sleeves": sorted(excluded),
+        "candidates": candidates,
+        "selected": selected,
+        "correlation": {period: _correlation(daily, *windows[period]) for period in scoring},
+        "daily_net_points": {c: {str(k.date()): float(v) for k, v in s.items()} for c, s in daily.items()},
+    })
+
+
+def _out_of_sample(config: dict, period: str, requires: str) -> None:
+    """Open one out-of-sample window once, after everything it must not influence is saved."""
+    if not (OUT / f"{requires}.json").exists():
+        raise SystemExit(f"run the {requires} stage first")
+    if (OUT / f"{period}.json").exists():
+        raise SystemExit(f"{period} has already been opened; its report is {OUT / f'{period}.json'}")
+    selected = _load("valid")["selected"]
+    windows = pipeline.periods(config)
+    order = ("in_sample", "valid", "oos1", "oos2")
+    scoring = {name: windows[name] for name in order[: order.index(period) + 1]}
+    market = pipeline.load_market(windows[period][1].date())
+    sleeves, params = _optimised_sleeves(market)
+    table, daily = _score_combos(market, sleeves, scoring, config)
+    ic = _momentum_ic(market, *windows[period])
+    _print_period(table, period)
+    print(f"\nselected on valid: {selected}; Momentum IC on {period}: {ic:.4f}")
+    print(f"last bar: {market.minutes['Datetime'].max()}")
+    _save(period, {
+        "parameters": params,
+        "selected": selected,
+        "combos": table.to_dict("records"),
+        "momentum_ic": ic,
+        "last_bar": str(market.minutes["Datetime"].max()),
+        "correlation": {name: _correlation(daily, *windows[name]) for name in scoring},
+        "daily_net_points": {c: {str(k.date()): float(v) for k, v in s.items()} for c, s in daily.items()},
+    })
+
+
+def oos1(config: dict) -> None:
+    """Step 6: OOS 1 (2025), opened once after the final combination is chosen and committed."""
+    _out_of_sample(config, "oos1", requires="valid")
+
+
+def oos2(config: dict) -> None:
+    """Step 6: OOS 2 (2026 to the last bar), opened once after OOS 1."""
+    _out_of_sample(config, "oos2", requires="oos1")
+
+
 STAGES = {
     "momentum-cv": momentum_cv,
     "momentum-q": momentum_q,
     "basis-grid": basis_grid,
     "in-sample-baseline": in_sample_baseline,
+    "valid": valid,
+    "oos1": oos1,
+    "oos2": oos2,
 }
 
 
