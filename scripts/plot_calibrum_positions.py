@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """Deck figure: where each sleeve and the C+B+M vote are long or short over one week.
 
-Top panel: VN30F1M minute close. Below, one lane per sleeve and one for the
+Top panel: VN30F1M minute close, with the vote's trades marked: a blue up
+triangle where it goes long, an orange down triangle where it goes short, a
+grey dot where it goes flat. Below, one thin lane per sleeve and one for the
 vote, blue where long and orange where short (step-5 parameters). The x-axis
 counts trading minutes, so lunch breaks and nights take no space.
 
@@ -55,6 +57,8 @@ def main() -> int:
     sleeves, _ = _optimised_sleeves(market)
     frame = pd.DataFrame({"t": market.minutes["Datetime"], "close": market.close, **sleeves})
     frame["V"] = np.sign(frame["C"] + frame["B"] + frame["M"])
+    # The vote's position one minute earlier, taken before the cut so a position carried in is not a trade.
+    frame["V_before"] = frame["V"].shift(fill_value=0.0)
     frame = frame[(frame["t"] >= start) & (frame["t"] < end)].reset_index(drop=True)
     x = np.arange(len(frame))
     day_starts = frame.index[frame["t"].dt.date.ne(frame["t"].dt.date.shift())].to_numpy()
@@ -63,10 +67,16 @@ def main() -> int:
     size_px = (1664, 620)
     fig = plt.figure(figsize=(2 * size_px[0] / DPI, 2 * size_px[1] / DPI))
     fig.patch.set_facecolor(SURFACE)
-    grid = fig.add_gridspec(1 + len(LANES), 1, height_ratios=[3.2] + [0.55] * len(LANES), hspace=0.18)
+    grid = fig.add_gridspec(1 + len(LANES), 1, height_ratios=[3.2] + [0.27] * len(LANES), hspace=0.12)
 
     price = fig.add_subplot(grid[0])
     price.plot(x, frame["close"], color=INK, linewidth=1.4)
+    vote = frame["V"].to_numpy()
+    previous = frame["V_before"].to_numpy()
+    for target, marker, colour, size in ((1.0, "^", LONG, 150), (-1.0, "v", SHORT, 150), (0.0, "o", MUTED, 70)):
+        hits = np.flatnonzero((vote != previous) & (vote == target))
+        price.scatter(hits, frame["close"].to_numpy()[hits], marker=marker, s=size, color=colour,
+                      edgecolors=SURFACE, linewidths=1.5, zorder=3)
     price.set_ylabel("VN30F1M", color=MUTED)
     price.grid(axis="y", color=GRID, linewidth=1)
     axes = [price]
@@ -92,8 +102,13 @@ def main() -> int:
     ends = np.r_[day_starts[1:], len(frame)]
     axes[-1].set_xticks((day_starts + ends) / 2)
     axes[-1].set_xticklabels([frame["t"].iloc[d].strftime("%a %d %b") for d in day_starts])
-    handles = [plt.Rectangle((0, 0), 1, 1, color=LONG), plt.Rectangle((0, 0), 1, 1, color=SHORT)]
-    price.legend(handles, ["Long", "Short"], loc="upper left", frameon=False, ncol=2, labelcolor=INK)
+    handles = [
+        plt.Line2D([], [], marker="^", linestyle="", markersize=11, color=LONG),
+        plt.Line2D([], [], marker="v", linestyle="", markersize=11, color=SHORT),
+        plt.Line2D([], [], marker="o", linestyle="", markersize=8, color=MUTED),
+    ]
+    price.legend(handles, ["Vote goes long", "Vote goes short", "Vote goes flat"], loc="lower left",
+                 bbox_to_anchor=(0.0, 1.0), frameon=False, ncol=3, labelcolor=INK, borderaxespad=0.2)
 
     FIGURES.mkdir(parents=True, exist_ok=True)
     out = FIGURES / f"positions_{args.start}_{args.end}.png"
