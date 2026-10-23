@@ -55,3 +55,5 @@ papertrade/.ruff_cache/
 
 # Claude Code local files (skills, settings)
 .claude/
+**/.env.*
+!**/.env.example
