@@ -34,7 +34,7 @@ def run(broker: Broker, quotes: KafkaQuotes, order: Order, wait_s: float = 8.0) 
     status = broker.wait(cl_ord_id, wait_s)
     if status not in {"Filled", "Canceled", "Rejected", "Expired"}:
         terminal, status = broker.cancel(cl_ord_id)
-        print(f"  cancel after {wait_s:.0f}s: terminal={terminal} status={status}")
+        print(f"  not done after {wait_s:.0f}s, cancel: terminal={terminal} status={status}")
     print(f"  {order.side} {order.qty} @ {order.price} ({order.reason}) id={cl_ord_id} status={status} "
           f"filled={broker.filled(cl_ord_id)} text={broker.reject_text(cl_ord_id)}", flush=True)
     time.sleep(3.0)

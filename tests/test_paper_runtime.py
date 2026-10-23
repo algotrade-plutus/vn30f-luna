@@ -163,3 +163,31 @@ def test_halt_file_stops_new_orders(tmp_path, monkeypatch) -> None:
 
     runner.trade(CONTINUOUS)
     assert broker.sent == []
+
+
+def test_a_fill_stamped_before_the_ack_still_counts() -> None:
+    from datetime import datetime, timezone
+
+    from papertrade.calibrum.broker import _patch_fill_ordering
+
+    class Manager:
+        def __init__(self) -> None:
+            self.status_map = {}
+
+        def _update_status(self, cl_ord_id, status, at, **kwargs) -> None:  # the SDK's newest-wins rule
+            prev = self.status_map.get(cl_ord_id)
+            if prev is None or at > prev["time"]:
+                self.status_map[cl_ord_id] = {"status": status, "time": at, **kwargs}
+
+    raw = type("Raw", (), {})()
+    raw.orders = Manager()
+    _patch_fill_ordering(raw)
+    ack = datetime(2026, 10, 23, 6, 34, 11, 44000, tzinfo=timezone.utc)
+    fill = datetime(2026, 10, 23, 6, 34, 9, tzinfo=timezone.utc)  # the tick's whole second
+
+    raw.orders._update_status("a", "New", ack)
+    raw.orders._update_status("a", "Filled", fill, cum_qty=1.0)
+    assert raw.orders.status_map["a"]["status"] == "Filled"
+    assert raw.orders.status_map["a"]["cum_qty"] == 1.0
+    raw.orders._update_status("a", "New", fill)  # an older, earlier-stage report does not win
+    assert raw.orders.status_map["a"]["status"] == "Filled"

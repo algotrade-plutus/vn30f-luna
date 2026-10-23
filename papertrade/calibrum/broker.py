@@ -8,6 +8,7 @@ places and cancels.
 from __future__ import annotations
 
 import os
+import time
 from datetime import datetime, timedelta
 from pathlib import Path
 from types import MethodType
@@ -16,6 +17,8 @@ from typing import Any
 from .execution import Account, Order, tick
 
 TERMINAL = {"Filled", "Canceled", "Rejected", "Expired", "DoneForDay"}
+# How far along an order is; a later stage always replaces an earlier one.
+STAGE = {"PendingNew": 0, "New": 1, "PendingCancel": 1, "PartiallyFilled": 2, **{status: 3 for status in TERMINAL}}
 
 
 class OrderGateClosed(RuntimeError):
@@ -44,6 +47,29 @@ def _patch_fix_logon(raw: Any) -> None:
         message.setField(fix.Account(self._sub_provider.current()))
 
     engine._inject_admin_credentials = MethodType(inject, engine)
+
+
+def _patch_fill_ordering(raw: Any) -> None:
+    """Keep fills the SDK would drop (REBUILD_NOTES #23).
+
+    The SDK applies an ExecutionReport only if its TransactTime is newer than the
+    last one. PaperTrade stamps a fill with the market tick's whole second, which
+    is often earlier than the New ack, so the fill was discarded and the order
+    stayed New with no fill. A report that moves the order to a later stage now
+    always applies.
+    """
+    manager = getattr(raw, "orders", None)
+    if manager is None or not hasattr(manager, "_update_status"):
+        return
+    original = manager._update_status
+
+    def update(cl_ord_id: str, status: str, at: datetime, **kwargs: Any) -> None:
+        prev = manager.status_map.get(cl_ord_id)
+        if prev is not None and at <= prev["time"] and STAGE.get(status, 0) > STAGE.get(prev.get("status"), 0):
+            at = prev["time"] + timedelta(microseconds=1)
+        original(cl_ord_id, status, at, **kwargs)
+
+    manager._update_status = update
 
 
 def _symbol(raw: Any) -> str:
@@ -80,6 +106,7 @@ class Broker:
         )
         if enable_fix:
             _patch_fix_logon(raw)
+            _patch_fill_ordering(raw)
         return cls(raw, symbol, allow_orders)
 
     # Session
@@ -155,14 +182,28 @@ class Broker:
         )
 
     def cancel(self, cl_ord_id: str, timeout: float = 5.0) -> tuple[bool, str]:
+        """Cancel and wait for a terminal state. After a cancel reject the SDK may mark a filled
+        order Rejected with no fill (REBUILD_NOTES #23): read the outcome from REST, not from here."""
         if not self.allow_orders:
             raise OrderGateClosed("order gate is closed")
         terminal, status = self.raw.cancel_order(cl_ord_id, timeout=timeout)
-        return bool(terminal), str(status)
+        if not terminal:
+            status = self.wait(cl_ord_id, timeout)
+        return status in TERMINAL, str(status)
 
     def wait(self, cl_ord_id: str, timeout: float, statuses: set[str] = TERMINAL) -> str:
-        self.raw.wait_for(cl_ord_id, statuses, timeout=timeout)
-        return str(self.raw.get_order_status(cl_ord_id))
+        """Status once it is in ``statuses`` or ``timeout`` has passed.
+
+        The SDK's wait_for wakes on any status change (PendingNew -> New), not on the
+        ones asked for, so it is called in a loop (REBUILD_NOTES #23).
+        """
+        deadline = time.monotonic() + timeout
+        while True:
+            status = str(self.raw.get_order_status(cl_ord_id))
+            left = deadline - time.monotonic()
+            if status in statuses or left <= 0:
+                return status
+            self.raw.wait_for(cl_ord_id, statuses, timeout=min(0.2, left))
 
     def filled(self, cl_ord_id: str) -> int:
         return int(self.raw.get_order_cumqty(cl_ord_id) or 0)
