@@ -31,7 +31,7 @@ from src.adapters.strategies.calendar_mtw_signal_source import calendar_mtw_stre
 from src.lab.backtest import BacktestConfig, evaluate
 
 from . import basis, momentum
-from .grid import completes_bar, crosses_roll, expiry_sessions, last_row_of_contract, spread_to_minutes
+from .grid import completes_bar, crosses_roll, expiry_sessions, last_row_of_contract, next_print, spread_to_minutes
 
 WORKSPACE = Path(__file__).resolve().parents[3]
 CONFIG_PATH = WORKSPACE / "config" / "research.toml"
@@ -68,10 +68,45 @@ class Market:
     expiry: np.ndarray
     no_index: np.ndarray
     roll_end: np.ndarray
+    # Live only: the clock after the last closed minute. None for history.
+    now: pd.Timestamp | None = None
 
     @property
     def close(self) -> np.ndarray:
         return self.minutes["Close"].to_numpy(float)
+
+    def next_label(self, labels: pd.Series) -> pd.Timestamp | None:
+        """Live: the bar (in ``labels``' clock) of the next print; None for history."""
+        if self.now is None:
+            return None
+        upcoming = pd.Series([next_print(self.now)])
+        return (labels_10m(upcoming) if labels is self.labels_10m else labels_30m(upcoming)).iloc[0]
+
+
+def build_market(minutes: pd.DataFrame, index_minutes: pd.DataFrame, now: pd.Timestamp | None = None) -> Market:
+    """Market from futures minutes (with Contract) and VN30 minutes.
+
+    ``now`` marks a live stream: the last bar may still be running, and only
+    past sessions count as lacking index bars (VN30 prints from 09:15).
+    """
+    futures_30m = bars_30m(minutes)
+    adjusted, _ = roll_adjust_front_month(futures_30m)
+    days = minutes["Datetime"].dt.date
+    no_index = ~days.isin(set(index_minutes["Datetime"].dt.date))
+    if now is not None:
+        no_index &= days < now.date()
+    return Market(
+        minutes=minutes,
+        labels_10m=labels_10m(minutes["Datetime"]),
+        labels_30m=labels_30m(minutes["Datetime"]),
+        futures_30m=futures_30m,
+        futures_30m_adjusted=adjusted,
+        index_30m=bars_30m(index_minutes),
+        expiry=expiry_sessions(minutes["Datetime"]),
+        no_index=no_index.to_numpy(),
+        roll_end=last_row_of_contract(minutes["Contract"]),
+        now=now,
+    )
 
 
 def load_market(end: date) -> Market:
@@ -81,25 +116,14 @@ def load_market(end: date) -> Market:
     minutes = minutes[minutes["Datetime"] < cutoff].reset_index(drop=True)
     index_minutes = load_index_minutes()
     index_minutes = index_minutes[index_minutes["Datetime"] < cutoff].reset_index(drop=True)
-    futures_30m = bars_30m(minutes)
-    adjusted, _ = roll_adjust_front_month(futures_30m)
-    index_days = set(index_minutes["Datetime"].dt.date)
-    return Market(
-        minutes=minutes,
-        labels_10m=labels_10m(minutes["Datetime"]),
-        labels_30m=labels_30m(minutes["Datetime"]),
-        futures_30m=futures_30m,
-        futures_30m_adjusted=adjusted,
-        index_30m=bars_30m(index_minutes),
-        expiry=expiry_sessions(minutes["Datetime"]),
-        no_index=~minutes["Datetime"].dt.date.isin(index_days).to_numpy(),
-        roll_end=last_row_of_contract(minutes["Contract"]),
-    )
+    return build_market(minutes, index_minutes)
 
 
 def calendar_mtw_positions(market: Market) -> np.ndarray:
-    stream, _, _ = calendar_mtw_stream(drop_atc(bars_10m(market.minutes)))
-    position = spread_to_minutes(market.labels_10m, stream.set_index("Datetime")["Position"])
+    stream, _, _ = calendar_mtw_stream(drop_atc(bars_10m(market.minutes)), open_end=market.now is not None)
+    position = spread_to_minutes(
+        market.labels_10m, stream.set_index("Datetime")["Position"], market.next_label(market.labels_10m)
+    )
     position[market.roll_end] = 0.0
     return position
 
@@ -108,7 +132,7 @@ def _decision_rows(market: Market, clocks: tuple[str, ...] | None = None, exclud
     labels = market.labels_30m
     clock = labels.dt.strftime("%H:%M")
     keep = clock.isin(clocks) if clocks is not None else ~clock.isin(exclude)
-    return completes_bar(labels) & keep.to_numpy()
+    return completes_bar(labels, market.next_label(labels)) & keep.to_numpy()
 
 
 def momentum_scores(market: Market, model: momentum.RidgeModel) -> pd.Series:

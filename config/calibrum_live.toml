@@ -1,0 +1,21 @@
+# Calibrum C+B+M parameters for paper trading, written by
+# `scripts/run_calibrum_1m.py freeze-live` from the step-5 choices on in-sample.
+# Do not edit by hand; rerun the stage.
+
+combination = "C+B+M"
+
+[basis]
+window = 60
+z_entry = 1.5
+
+[momentum]
+q = 0.9
+theta = 0.23207460886671366
+
+[momentum.model]
+features = ["x1_vwap", "x2_open", "x3_trend", "x4_asym", "x5_body"]
+lam = 1.0
+median = [0.023921569929045778, 0.0798913279452266, 0.0404978108910479, 0.10953382654425128, 0.015748111200952014]
+iqr = [0.6287926777643963, 1.3313877519433732, 0.8123292190728444, 1.5590895326966865, 0.7210373180528421]
+beta0 = 0.03573821744815397
+beta = [0.03831634159064005, 0.05698383074796701, 0.02593238893107039, 0.01754741850313633, 0.019378319225889503]

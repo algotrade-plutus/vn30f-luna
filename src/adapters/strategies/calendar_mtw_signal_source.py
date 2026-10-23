@@ -17,6 +17,10 @@ Position[t] is the position held after the close of bar t: a leg holds its
 side from its entry bar up to, not including, its exit bar.  Legs are summed
 and capped at one contract, as both trade one account.  A missing entry or
 signal bar skips the leg; a missing exit bar moves the exit to the next bar.
+
+``open_end`` is for a live stream that stops at the latest bar: a leg whose
+exit lies beyond the last bar stays open, and sessions after the last bar are
+in the future rather than missing.  History leaves it off.
 """
 from __future__ import annotations
 
@@ -125,19 +129,28 @@ def monday_legs(
 
 
 def midweek_legs(
-    bars: pd.DataFrame, params: CalendarMtwParams = CalendarMtwParams()
+    bars: pd.DataFrame, params: CalendarMtwParams = CalendarMtwParams(), open_end: bool = False
 ) -> tuple[list[Leg], list[Skip]]:
     """W0X1 long legs."""
     by_time = bars.set_index("Datetime")
     by_day = dict(tuple(bars.groupby(bars["Datetime"].dt.date)))
+    last_day = bars["Datetime"].dt.date.max()
+    tuesdays = _calendar_sessions(bars, TUESDAY)
+    if open_end:
+        # The next Tuesday can be entered from the session before it, which may be the last one.
+        tuesdays += [
+            d for d in (last_day + timedelta(days=k) for k in range(1, 8))
+            if d.weekday() == TUESDAY and is_trading_day(d)
+        ]
     legs: list[Leg] = []
     skips: list[Skip] = []
-    for day in _calendar_sessions(bars, TUESDAY):
+    for day in tuesdays:
         wednesday = day + timedelta(days=1)
         if not is_trading_day(wednesday):
             skips.append(Skip("W0X1", day, "Wednesday is a holiday"))
             continue
-        if day not in by_day or wednesday not in by_day:
+        missing = [d for d in (day, wednesday) if d not in by_day and not (open_end and d > last_day)]
+        if missing:
             skips.append(Skip("W0X1", day, "Tuesday or Wednesday session missing"))
             continue
         entry_at = _at(previous_trading_day(day), params.w0_entry)
@@ -149,7 +162,9 @@ def midweek_legs(
     return legs, skips
 
 
-def build_positions(bars: pd.DataFrame, legs: list[Leg]) -> tuple[pd.DataFrame, pd.DataFrame]:
+def build_positions(
+    bars: pd.DataFrame, legs: list[Leg], open_end: bool = False
+) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Spread legs over the bar stream. Returns the Datetime/Close/Position stream and a leg table."""
     times = bars["Datetime"].to_numpy()
     position = pd.Series(0.0, index=bars.index)
@@ -158,6 +173,8 @@ def build_positions(bars: pd.DataFrame, legs: list[Leg]) -> tuple[pd.DataFrame, 
         start = int(times.searchsorted(leg.entry.to_datetime64()))
         stop = int(times.searchsorted(leg.exit_target.to_datetime64()))
         if stop >= len(times):
+            if open_end and start < len(times):
+                position.iloc[start:] += leg.side
             continue
         position.iloc[start:stop] += leg.side
         rows.append({
@@ -176,10 +193,11 @@ def build_positions(bars: pd.DataFrame, legs: list[Leg]) -> tuple[pd.DataFrame, 
 def calendar_mtw_stream(
     bars: pd.DataFrame,
     params: CalendarMtwParams = CalendarMtwParams(),
+    open_end: bool = False,
 ) -> tuple[pd.DataFrame, pd.DataFrame, list[Skip]]:
     """Position stream of the Calendar MTW sleeve on 10-minute bars without the ATC bar."""
     prepared = add_ib_low(bars, params)
     monday, monday_skips = monday_legs(prepared, params)
-    midweek, midweek_skips = midweek_legs(prepared, params)
-    stream, table = build_positions(prepared, monday + midweek)
+    midweek, midweek_skips = midweek_legs(prepared, params, open_end)
+    stream, table = build_positions(prepared, monday + midweek, open_end)
     return stream, table, monday_skips + midweek_skips

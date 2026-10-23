@@ -439,6 +439,48 @@ def benchmarks(config: dict) -> None:
     })
 
 
+def freeze_live(config: dict) -> None:
+    """Write the step-5 parameters that paper trading uses to config/calibrum_live.toml (tracked)."""
+    from src.lab.calibrum_1m import live
+
+    model = _model()
+    threshold = _load("momentum_threshold")
+    grid = _load("basis_grid")
+    selected = _load("valid")["selected"]
+    if selected != "C+B+M":
+        raise SystemExit(f"live runtime trades C+B+M; valid selected {selected}")
+
+    def floats(values) -> str:
+        return "[" + ", ".join(repr(float(v)) for v in values) + "]"
+
+    text = f"""# Calibrum C+B+M parameters for paper trading, written by
+# `scripts/run_calibrum_1m.py freeze-live` from the step-5 choices on in-sample.
+# Do not edit by hand; rerun the stage.
+
+combination = "{selected}"
+
+[basis]
+window = {int(grid["window"])}
+z_entry = {float(grid["z_entry"])!r}
+
+[momentum]
+q = {float(threshold["q"])!r}
+theta = {float(threshold["theta"])!r}
+
+[momentum.model]
+features = [{", ".join(f'"{name}"' for name in momentum.FEATURES)}]
+lam = {float(model.lam)!r}
+median = {floats(model.median)}
+iqr = {floats(model.iqr)}
+beta0 = {float(model.beta0)!r}
+beta = {floats(model.beta)}
+"""
+    live.LIVE_CONFIG.write_text(text, encoding="utf-8")
+    params = live.load_params()
+    assert np.allclose(params.model.beta, model.beta) and params.momentum_theta == float(threshold["theta"])
+    print(f"wrote {live.LIVE_CONFIG.relative_to(WORKSPACE)}")
+
+
 STAGES = {
     "benchmarks": benchmarks,
     "momentum-cv": momentum_cv,
@@ -448,6 +490,7 @@ STAGES = {
     "valid": valid,
     "oos1": oos1,
     "oos2": oos2,
+    "freeze-live": freeze_live,
 }
 
 
