@@ -191,3 +191,25 @@ def test_a_fill_stamped_before_the_ack_still_counts() -> None:
     assert raw.orders.status_map["a"]["cum_qty"] == 1.0
     raw.orders._update_status("a", "New", fill)  # an older, earlier-stage report does not win
     assert raw.orders.status_map["a"]["status"] == "Filled"
+
+
+def test_targets_wait_for_vn30_to_reach_the_futures_minute(tmp_path, monkeypatch) -> None:
+    import papertrade.calibrum.runner as runner_module
+
+    clock = [1000.0]
+    monkeypatch.setattr(runner_module.time, "time", lambda: clock[0])
+    monkeypatch.setattr(runner_module.live, "load_params", lambda: None)
+    books = {runner_module.FUTURES: type("B", (), {"last": pd.Timestamp("2026-10-22 13:59")})(),
+             runner_module.INDEX: type("B", (), {"last": pd.Timestamp("2026-10-22 13:58")})()}
+    runner = runner_module.Runner("observe", 1, tmp_path, feed=type("F", (), {"books": books})())
+
+    assert not runner.ready()  # VN30 13:59 not in yet
+    books[runner_module.INDEX].last = pd.Timestamp("2026-10-22 13:59")
+    assert runner.ready()
+    runner.built_for = pd.Timestamp("2026-10-22 13:59")
+    assert not runner.ready()  # already built for this minute
+
+    books[runner_module.FUTURES].last = pd.Timestamp("2026-10-22 14:00")
+    assert not runner.ready()
+    clock[0] += 11  # VN30 still late after the grace period: build anyway
+    assert runner.ready()

@@ -6,6 +6,7 @@ here="$(cd "$(dirname "$0")" && pwd)"
 mkdir -p /var/lib/calibrum/test && chmod 777 /var/lib/calibrum/test
 [ -f /run/algotrade/paperbroker.env ] || /opt/algotrade/current/deploy/aws/render-env.sh
 docker rm -f calibrum-test >/dev/null 2>&1 || true
+rm -f /var/lib/calibrum/test/HALT  # starting the runner is the operator's go-ahead
 until=\$(TZ=Asia/Ho_Chi_Minh date '+%Y-%m-%d 14:46')
 setsid nohup flock -n /var/lib/algotrade/ops/execution.lock docker run --rm --name calibrum-test \
   --env-file /run/algotrade/paperbroker.env -e PAPERBROKER_ALLOW_ORDERS=true \

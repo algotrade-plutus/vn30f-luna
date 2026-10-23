@@ -32,9 +32,13 @@ from src.lab.calibrum_1m import live  # noqa: E402
 POLL_S = 2.0
 FEED_STALE_S = 90.0
 CANCEL_AFTER_S = 8.0
+# A new futures minute waits this long for the same VN30 minute before targets are built without it.
+INDEX_GRACE_S = 10.0
 # After an order ends, REST may still show the old position for a few seconds (REBUILD_NOTES #22).
 SETTLE_S = 3.0
 ABANDON_CLOSED_S = 120.0
+# While the position already matches the vote, REST is read this often (margin check included).
+QUIET_READ_S = 30.0
 
 
 def now_ict() -> pd.Timestamp:
@@ -69,6 +73,10 @@ class Runner:
         self.targets: live.Targets | None = None
         self.pending: tuple[str, float] | None = None  # our working order: (cl_ord_id, sent at)
         self.settle_until = 0.0
+        self.built_for: pd.Timestamp | None = None  # futures minute the targets were built on
+        self.ahead_since: float | None = None
+        self.last_account = None
+        self.last_read = 0.0
         self.last_error: str | None = None
 
     @property
@@ -78,12 +86,31 @@ class Runner:
     def symbol(self) -> str | None:
         return None if self.targets is None else f"HNXDS:{self.targets.contract}"
 
+    def ready(self) -> bool:
+        """Build targets once per futures minute, when VN30 has the same minute (or after a grace period).
+
+        The two series arrive a few seconds apart; building on one without the
+        other could close a 30-minute bar without its last minute.
+        """
+        futures_last = self.feed.books[FUTURES].last
+        if futures_last is None or futures_last == self.built_for:
+            return False
+        index_last = self.feed.books[INDEX].last
+        if index_last is not None and index_last >= futures_last:
+            return True
+        if self.ahead_since is None:
+            self.ahead_since = time.time()
+        if time.time() - self.ahead_since < INDEX_GRACE_S:
+            return False
+        self.journal.write("index_late", futures_last=futures_last, index_last=index_last)
+        return True
+
     def step(self, now: pd.Timestamp) -> None:
-        confirmed = self.feed.poll(now)
-        if confirmed[FUTURES] or confirmed[INDEX] or self.targets is None:
-            if not self.feed.books[FUTURES].bars.empty:
-                self.targets = live.targets(self.feed.futures(), self.feed.index(), now, self.params)
-                self.journal.write("target", **{k: v for k, v in asdict(self.targets).items()})
+        self.feed.poll(now)
+        if self.ready():
+            self.targets = live.targets(self.feed.futures(), self.feed.index(), now, self.params)
+            self.built_for, self.ahead_since = self.feed.books[FUTURES].last, None
+            self.journal.write("target", **{k: v for k, v in asdict(self.targets).items()})
         if self.mode == "active" and self.targets is not None:
             self.trade(now)
 
@@ -122,7 +149,12 @@ class Runner:
         if time.time() < self.settle_until:
             return
 
+        vote, held = self.targets.vote, None if self.last_account is None else self.last_account.position
+        settled = held is not None and (held > 0) - (held < 0) == vote
+        if settled and time.time() - self.last_read < QUIET_READ_S:
+            return
         account = broker.account()
+        self.last_account, self.last_read = account, time.time()
         self.quotes.follow(symbol)
         quote = self.quotes.quote(symbol)
         order = plan(self.targets.vote, self.qty, account, quote, now, broker.max_placeable)
@@ -130,6 +162,7 @@ class Runner:
             return
         cl_ord_id = broker.place(order)
         self.pending = (cl_ord_id, time.time())
+        self.last_account = None
         self.journal.write("order", id=cl_ord_id, **asdict(order), position=account.position,
                            remain_cash=account.remain_cash, vote=self.targets.vote)
 
