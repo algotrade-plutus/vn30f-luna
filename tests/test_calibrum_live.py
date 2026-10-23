@@ -42,15 +42,23 @@ def history():
     if not live.LIVE_CONFIG.exists():
         pytest.skip("config/calibrum_live.toml not written")
     try:
-        market = pipeline.load_market(pd.Timestamp("2026-10-21").date())
-        index_minutes = pipeline.load_index_minutes()
+        end = pd.Timestamp("2026-10-22")
+        futures = live.without_pre_auction(pipeline.load_futures_minutes().query("Datetime < @end"))
+        index_minutes = live.without_pre_auction(pipeline.load_index_minutes().query("Datetime < @end"))
+        market = pipeline.build_market(futures, index_minutes)
     except Exception as exc:  # cached DNSE bars are not in the repository
         pytest.skip(f"DNSE cache unavailable: {exc}")
     return market, index_minutes, live.load_params()
 
 
+def test_decision_clock_moves_the_close_of_the_continuous_session_to_14_28() -> None:
+    assert live.decision_clock(pd.Timestamp("2026-10-22 14:29:04")) == pd.Timestamp("2026-10-22 14:31")
+    assert live.decision_clock(pd.Timestamp("2026-10-22 14:28:04")) == pd.Timestamp("2026-10-22 14:28:04")
+    assert live.decision_clock(pd.Timestamp("2026-10-22 14:46")) == pd.Timestamp("2026-10-22 14:46")
+
+
 def test_live_window_matches_the_full_history(history) -> None:
-    """The live target at a minute equals the backtest position at that minute (sessions with index bars)."""
+    """The live target at a minute equals the backtest of the pre-auction variant (sessions with index bars)."""
     market, index_minutes, params = history
     full = {
         "calendar": pipeline.calendar_mtw_positions(market),
@@ -61,7 +69,8 @@ def test_live_window_matches_the_full_history(history) -> None:
     stamps = market.minutes["Datetime"]
     with_index = ~market.no_index & (stamps >= "2025-06-01").to_numpy()
     rng = np.random.default_rng(23)
-    rows = sorted(rng.choice(np.flatnonzero(with_index), 40, replace=False))
+    late = (stamps.dt.strftime("%H:%M") >= "14:20").to_numpy() & with_index
+    rows = sorted([*rng.choice(np.flatnonzero(with_index), 30, replace=False), *rng.choice(np.flatnonzero(late), 20, replace=False)])
 
     mismatches = []
     for row in rows:

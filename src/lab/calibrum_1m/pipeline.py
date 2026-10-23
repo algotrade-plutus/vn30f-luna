@@ -10,14 +10,6 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from plutus.evaluation.metrics import (
-    information_ratio,
-    longest_drawdown_duration,
-    maximum_drawdown,
-    sharpe_ratio,
-    sortino_ratio,
-)
-from plutus.market.margin import vsd_initial_margin
 from src.adapters.data.dnse_minute_bars import (
     bars_10m,
     bars_30m,
@@ -190,6 +182,16 @@ def score_periods(
     config: dict,
 ) -> pd.DataFrame:
     """Metrics per window from one run over the whole stream (fill at the signal-bar close)."""
+    # Imported here so the live runtime, which only builds positions, does not need Plutus.
+    from plutus.evaluation.metrics import (
+        information_ratio,
+        longest_drawdown_duration,
+        maximum_drawdown,
+        sharpe_ratio,
+        sortino_ratio,
+    )
+    from plutus.market.margin import vsd_initial_margin
+
     if crosses_roll(position, market.minutes["Contract"]).any():
         raise ValueError("a position is held across a contract roll")
     cost = config["costs"]["points_per_contract_per_side"]

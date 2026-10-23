@@ -80,3 +80,86 @@ def test_margin_deficit_cuts_just_enough_contracts() -> None:
 
     assert plan(1, 10, short_by_52m, QUOTE, CONTINUOUS, lambda s, p: 0) == Order("SELL", 2, 1890.3, "margin")
     assert plan(-1, 10, Account(-10, -1e6, 0), QUOTE, CONTINUOUS, lambda s, p: 0) == Order("BUY", 1, 1891.1, "margin")
+
+
+class FakeBroker:
+    symbol = "HNXDS:VN30F2611"
+
+    def __init__(self) -> None:
+        self.position, self.sent, self.cancelled = 0, [], []
+        self.status = "New"
+
+    def account(self) -> Account:
+        return Account(self.position, 549e6, 0)
+
+    def max_placeable(self, side: str, price: float) -> int:
+        return 11
+
+    def place(self, order: Order) -> str:
+        self.sent.append(order)
+        return f"id{len(self.sent)}"
+
+    def wait(self, cl_ord_id: str, timeout: float) -> str:
+        return self.status
+
+    def cancel(self, cl_ord_id: str) -> tuple[bool, str]:
+        self.cancelled.append(cl_ord_id)
+        return False, "PendingCancel"
+
+    def filled(self, cl_ord_id: str) -> int:
+        return 0
+
+    def reject_text(self, cl_ord_id: str) -> None:
+        return None
+
+    def logged_on(self) -> bool:
+        return True
+
+
+class FakeQuotes:
+    def follow(self, symbol: str) -> None:
+        pass
+
+    def quote(self, symbol: str) -> Quote:
+        return QUOTE
+
+
+def test_runner_cancels_a_stale_order_then_waits_for_rest_before_sending_again(tmp_path, monkeypatch) -> None:
+    import papertrade.calibrum.runner as runner_module
+    from src.lab.calibrum_1m.live import Targets
+
+    clock = [1000.0]
+    monkeypatch.setattr(runner_module.time, "time", lambda: clock[0])
+    monkeypatch.setattr(runner_module.live, "load_params", lambda: None)
+    broker = FakeBroker()
+    runner = runner_module.Runner("active", 10, tmp_path, broker, FakeQuotes(), feed=type("F", (), {
+        "age_seconds": lambda self, series, now: 4.0})())
+    runner.targets = Targets(CONTINUOUS, CONTINUOUS, "VN30F2611", 1, 1, 0, 1)
+
+    runner.trade(CONTINUOUS)
+    assert broker.sent == [Order("BUY", 10, 1891.1, "open")]
+
+    clock[0] += 9  # unfilled after 8 s: cancel, and the FIX state says nothing was filled
+    runner.trade(CONTINUOUS)
+    assert broker.cancelled == ["id1"]
+
+    broker.position = 10  # REST shows the order did fill
+    runner.trade(CONTINUOUS)  # still settling: no new order
+    clock[0] += 4
+    runner.trade(CONTINUOUS)
+    assert len(broker.sent) == 1
+
+
+def test_halt_file_stops_new_orders(tmp_path, monkeypatch) -> None:
+    import papertrade.calibrum.runner as runner_module
+    from src.lab.calibrum_1m.live import Targets
+
+    monkeypatch.setattr(runner_module.live, "load_params", lambda: None)
+    broker = FakeBroker()
+    runner = runner_module.Runner("active", 10, tmp_path, broker, FakeQuotes(), feed=type("F", (), {
+        "age_seconds": lambda self, series, now: 4.0})())
+    runner.targets = Targets(CONTINUOUS, CONTINUOUS, "VN30F2611", 1, 1, 0, 1)
+    (tmp_path / "HALT").touch()
+
+    runner.trade(CONTINUOUS)
+    assert broker.sent == []

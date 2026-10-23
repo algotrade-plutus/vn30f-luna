@@ -1,0 +1,22 @@
+# Calibrum paper runtime. BASE is a PaperTrade image that already carries
+# paperbroker-client 0.2.8 and QuickFIX built for linux/amd64 (Python 3.11,
+# Alpine); this layer adds pandas and numpy and the code that
+# builds Calibrum targets. Build from the repository root:
+#   docker build -f papertrade/Dockerfile.calibrum --build-arg BASE=<image@sha256:...> .
+ARG BASE
+FROM ${BASE}
+
+USER root
+# numpy 2.5 needs Python 3.12; 2.4.6 is the last for the base image's 3.11.
+RUN python -m pip install --no-cache-dir --only-binary=:all: "numpy==2.4.6" "pandas==3.0.6"
+
+WORKDIR /calibrum
+COPY src ./src
+COPY config ./config
+COPY papertrade/calibrum ./papertrade/calibrum
+RUN chown -R algotrade:algotrade /calibrum
+
+USER algotrade
+ENV PYTHONPATH=/calibrum PYTHONUNBUFFERED=1 TZ=Asia/Ho_Chi_Minh
+HEALTHCHECK NONE
+ENTRYPOINT ["python", "-m", "papertrade.calibrum.runner"]

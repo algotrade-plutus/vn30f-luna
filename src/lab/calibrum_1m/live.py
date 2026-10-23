@@ -7,6 +7,13 @@ the Calendar entry at 14:20 of the session before Tuesday). Over 2021-2026 the
 last row matches the full-history position at every sampled minute except in
 sessions that lack index bars (tests/test_calibrum_live.py).
 
+Before the closing auction the live runtime decides one minute early: the
+14:29 and 14:30 minutes are left out, so the bars that close the continuous
+session (10-minute 14:20, 30-minute 14:00) close at the 14:28 minute and the
+order still fills before 14:30. The backtest of that variant (C+B+M, total
+407 against 425 million VND, OOS Sharpe 3.29 and 2.86 against 3.20 and 2.87)
+is the reference the live runtime is held to.
+
 Parameters are frozen in config/calibrum_live.toml by
 ``scripts/run_calibrum_1m.py freeze-live``.
 """
@@ -24,6 +31,7 @@ from .momentum import RidgeModel
 
 LIVE_CONFIG = pipeline.WORKSPACE / "config" / "calibrum_live.toml"
 LEAD_SESSIONS = 5
+PRE_AUCTION_CUT = ("14:29", "14:30")
 
 
 @dataclass(frozen=True)
@@ -65,6 +73,19 @@ def load_params(path: Path = LIVE_CONFIG) -> LiveParams:
     )
 
 
+def without_pre_auction(frame: pd.DataFrame) -> pd.DataFrame:
+    """Drop the 14:29 and 14:30 minutes."""
+    return frame[~frame["Datetime"].dt.strftime("%H:%M").isin(PRE_AUCTION_CUT)].reset_index(drop=True)
+
+
+def decision_clock(now: pd.Timestamp) -> pd.Timestamp:
+    """From 14:29 the next print that counts is the 14:45 auction, so the 14:28 minute closes its bars."""
+    clock = now.time()
+    if pd.Timestamp("14:29").time() <= clock < pd.Timestamp("14:45").time():
+        return now.normalize() + pd.Timedelta(hours=14, minutes=31)
+    return now
+
+
 def window(minutes: pd.DataFrame, index_minutes: pd.DataFrame, now: pd.Timestamp) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Minutes closed before ``now``, from LEAD_SESSIONS sessions before the current contract began."""
     minutes = minutes[minutes["Datetime"] < now]
@@ -85,8 +106,8 @@ def targets(minutes: pd.DataFrame, index_minutes: pd.DataFrame, now: pd.Timestam
     ``index_minutes`` the VN30 minute bars. Both are naive exchange time. A
     minute stamped t is closed once the clock passes t + 1 minute.
     """
-    futures, index = window(minutes, index_minutes, now)
-    market = pipeline.build_market(futures, index, now=now)
+    futures, index = window(without_pre_auction(minutes), without_pre_auction(index_minutes), now)
+    market = pipeline.build_market(futures, index, now=decision_clock(now))
     calendar = pipeline.calendar_mtw_positions(market)[-1]
     basis = pipeline.basis_positions(market, params.basis_window, params.basis_z_entry)[-1]
     momentum = pipeline.momentum_positions(market, params.model, params.momentum_theta)[-1]
