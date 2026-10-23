@@ -118,6 +118,7 @@ hiếm, chỉ MARKET). Không có Replaced; không có luồng sửa lệnh, ch�
 | 19 | Field health đặt tên sai (`ret_2d` thực là 20 bar) | đọc sai khi chẩn đoán | tên field theo đúng đơn vị |
 | 20 | Bảng ngày nghỉ lệch giữa local và EC2 (02/05/2025, 02/01/2026) | lịch sai | một bảng lễ duy nhất, dùng chung cho research và runtime |
 | 21 | Spot VN30 không có trên Kafka | Basis không có dữ liệu | lấy VN30 từ DNSE (mục 7); freshness spot chặn Basis, không chặn cả bot |
+| 23 | **Gốc của #22** (tìm ra 23/10/2026 qua log FIX): SDK chỉ áp báo cáo có TransactTime mới hơn báo cáo trước; PaperTrade gắn cho báo cáo khớp giờ của tick thị trường, làm tròn về giây, thường **sớm hơn** ack New (06:34:09.000 so với 06:34:11.044). Thêm vào đó `wait_for` thức dậy ở **bất kỳ** lần đổi trạng thái nào; sau cancel reject SDK ghi lệnh đã khớp thành "Rejected", cumQty 0 | lệnh khớp mà client thấy New, gửi hủy thừa, có thể đặt trùng | `broker._patch_fill_ordering`: trạng thái ở giai đoạn sau luôn thắng; `Broker.wait` hỏi lại tới khi đúng trạng thái. Smoke sau vá: hủy ra Canceled, mua và bán ra Filled; gửi tới khớp khoảng 90 ms |
 | 22 | Lệnh LIMIT vượt giá khớp ngay nhưng 8 giây không có ExecutionReport khớp (23/10/2026): client vẫn `filled=0`, gửi hủy, nhận cancel reject "Order not found or already cancelled" | nếu tin trạng thái FIX local mà gửi lại, sẽ bán gấp đôi và thành Short | trước mỗi lần gửi lại, đọc vị thế REST; cancel reject 1 nghĩa là phải hỏi lại trạng thái, không phải "chưa khớp" |
 
 ## 5. Mẹo đã kiểm chứng
