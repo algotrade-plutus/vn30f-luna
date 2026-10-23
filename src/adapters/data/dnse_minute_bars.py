@@ -20,6 +20,7 @@ from __future__ import annotations
 
 from datetime import time
 from pathlib import Path
+from typing import Any
 
 import pandas as pd
 
@@ -105,3 +106,47 @@ def bars_10m(minutes: pd.DataFrame) -> pd.DataFrame:
 def bars_30m(minutes: pd.DataFrame) -> pd.DataFrame:
     """30-minute bars on Calibrum's clock: 09:00 ... 14:00, the 11:30 stub, and 14:30 with the ATC."""
     return _aggregate(minutes, labels_30m(minutes["Datetime"]))
+
+
+def roll_adjust_front_month(frame: pd.DataFrame) -> tuple[pd.DataFrame, list[dict[str, Any]]]:
+    """Construct an additive continuous future solely from observed roll edges.
+
+    At a contract transition, the first new-contract open is shifted to equal
+    the prior front-month close.  The cumulative additive offset is then
+    applied to the later OHLC values.  This removes a mechanical roll jump but
+    is deliberately *not* represented as the vendor's unknown adjusted series.
+    """
+
+    required = {"Datetime", "Contract", "Open", "High", "Low", "Close"}
+    if missing := required - set(frame.columns):
+        raise ValueError(f"Futures frame missing columns: {sorted(missing)}")
+    adjusted = frame.copy()
+    adjusted["Datetime"] = pd.to_datetime(adjusted["Datetime"])
+    adjusted = adjusted.sort_values("Datetime", kind="stable").reset_index(drop=True)
+    offset = 0.0
+    adjustments: list[dict[str, Any]] = []
+    previous_contract: str | None = None
+    previous_close: float | None = None
+    for index, row in adjusted.iterrows():
+        contract = str(row["Contract"])
+        if previous_contract is not None and contract != previous_contract:
+            raw_new_open = float(row["Open"])
+            assert previous_close is not None
+            increment = previous_close - raw_new_open
+            offset += increment
+            adjustments.append(
+                {
+                    "timestamp": row["Datetime"].isoformat(),
+                    "from_contract": previous_contract,
+                    "to_contract": contract,
+                    "previous_raw_close": previous_close,
+                    "new_raw_open": raw_new_open,
+                    "incremental_offset": increment,
+                    "cumulative_offset": offset,
+                }
+            )
+        for column in ("Open", "High", "Low", "Close"):
+            adjusted.loc[index, column] = float(row[column]) + offset
+        previous_contract = contract
+        previous_close = float(row["Close"])
+    return adjusted, adjustments

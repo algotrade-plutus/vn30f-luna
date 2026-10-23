@@ -4,7 +4,7 @@ Chốt 22/10/2026, trước khi chạy bất kỳ backtest nào của nhánh nà
 
 Nhánh này dựng lại Calibrum trên dữ liệu mới (`config/research.toml`): nến 1 phút DNSE, lấp bằng nến 5 phút ở những
 phiên thiếu, in-sample 01/06/2020 đến 31/12/2022. Ba sleeve giữ nguyên giả thuyết của protocol cũ
-(`research/calibrum/ridge_h2`, `research/calibrum/shinji`) và của repo calendar-mtw-vn30f; thứ thay đổi là dữ liệu,
+(`research/calibrum/ridge_h2`, `research/calibrum/shinji`; đã xoá khỏi repo ngày 23/10/2026, còn trong lịch sử git tới commit `c951871`) và của repo calendar-mtw-vn30f; thứ thay đổi là dữ liệu,
 cách tính tiền, và các tham số được chọn lại theo hàm mục tiêu viết ở đây. Kết quả cũ không dùng để chọn gì trong nhánh
 này.
 

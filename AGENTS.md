@@ -1,77 +1,60 @@
 # AGENTS.md — Quy Chuẩn Kiến Trúc & Hướng Dẫn Vận Hành AI Agent
 
-Tài liệu này định hình toàn bộ cấu trúc dự án, quy tắc viết code (Clean Architecture) và hướng dẫn vận hành cho các AI Coding Assistant (Antigravity, Gemini, Claude, Cursor,...) khi làm việc trong repository này.
+Tài liệu này định hình cấu trúc dự án, quy tắc viết code và hướng dẫn vận hành cho các AI coding assistant khi làm việc trong repository này.
 
 ---
 
 ## 1. Tổng Quan Dự Án & Mục Tiêu
 
-Dự án này là hệ thống giao dịch định lượng (Quantitative Trading System) cho thị trường chứng khoán & phái sinh Việt Nam (VN30F), được tái cấu trúc theo mô hình **Plutus-Centric Clean Architecture**:
-1. **Lấy nến 1 phút DNSE làm nền tảng:** VN30F1M và chỉ số VN30 khung 1 phút từ API công khai của DNSE; nến 10 và 30 phút gộp từ nến 1 phút. Khoảng dữ liệu và giai đoạn nghiên cứu ghi trong `config/research.toml`. PostgreSQL `algotradeDB` chỉ phủ từ 2021 nên không dùng cho Bước 4–6.
-2. **Lab engine cho Bước 4 (In-Sample) và Bước 6 (Out-of-Sample):** Lab khớp lệnh tại giá close nến tín hiệu, tính chi phí 0,4 điểm mỗi hợp đồng mỗi chiều (gộp phí HNX, phí VSDC, thuế PIT, hoa hồng và trượt giá), lãi lỗ bằng VND trên vốn cố định, và mức sử dụng ký quỹ theo tỷ lệ ký quỹ ban đầu có ngày hiệu lực của Plutus. Plutus vẫn chỉ đọc, không sửa.
-3. **Research-Runtime Parity (Tính tương đồng tuyệt đối):** Dùng chung **100% Core Alpha logic** cho cả Backtest và Bot Live trên AWS EC2. Chỉ hoán đổi Execution Adapter, không viết lại code.
-4. **Kiểm định tính tái lập (Reproducibility):** Dùng `plutus-verify` và `.plutus/manifest.yaml` để đóng băng baseline trong container Docker độc lập.
+Dự án là hệ thống giao dịch định lượng cho hợp đồng tương lai VN30F1M. Chiến lược **Calibrum** gộp ba nguồn alpha
+(Calendar MTW, Basis, Momentum) bằng vote, nghiên cứu theo quy trình 9 bước của ALGOTRADE:
+1. **Lấy nến 1 phút DNSE làm nền tảng:** VN30F1M và chỉ số VN30 khung 1 phút từ API công khai của DNSE; phiên DNSE
+   thiếu nến 1 phút thì lấp bằng nến 5 phút, không bao giờ ffill. Nến 10 và 30 phút gộp từ nến phút. Khoảng dữ liệu và
+   giai đoạn nghiên cứu ghi trong `config/research.toml`.
+2. **Lab engine cho Bước 4–6:** Lab khớp lệnh tại giá close nến tín hiệu, xét stop ở close mỗi nến phút, tính chi phí
+   0,4 điểm mỗi hợp đồng mỗi chiều (gộp phí HNX, phí VSDC, thuế PIT, hoa hồng và trượt giá), lãi lỗ bằng VND trên vốn
+   cố định. Sharpe và drawdown lấy từ `plutus.evaluation.metrics`, tỷ lệ ký quỹ ban đầu theo ngày lấy từ
+   `plutus.market.margin`. Plutus chỉ đọc, không sửa.
+3. **Research-Runtime Parity:** Logic alpha dùng chung cho backtest và bot paper/live; chỉ hoán đổi adapter thực thi.
+4. **Báo cáo bằng tiền:** Kết quả ghi bằng triệu VND trên 100 triệu vốn mỗi hợp đồng; điểm chỉ số chỉ dùng cho khoảng
+   cách giá.
 
 ---
 
-## 2. Quy Tắc Kiến Trúc 4 Tầng (Clean Architecture)
-
-Mọi mã nguồn mới được tổ chức chặt chẽ trong thư mục `src/` theo quy tắc phụ thuộc một chiều (Dependency Rule):
+## 2. Cấu Trúc Mã Nguồn
 
 ```text
 src/
-├── domain/                  # [TẦNG 1] Nghiệp vụ cốt lõi (Core Business)
-│   ├── entities/            # Order, Position, Fill, Margin, Tick, Bar
-│   └── strategy/            # CalendarRules, Hypothesis
-│
-├── application/             # [TẦNG 2] Use Cases & Ports (Interfaces)
-│   ├── ports/               # IBrokerGateway, IMarketFeedGateway, IStateStore
-│   └── use_cases/           # RiskMonitorUseCase
-│
-├── adapters/                # [TẦNG 3] Interface Adapters (Cầu nối thực thi)
-│   ├── brokers/             # PlutusBrokerAdapter (Backtest), LivePaperAdapter (EC2 FIX/REST)
-│   └── data/                # PostgresTickSource, ParquetSource, KafkaLiveStream
-│
-└── infrastructure/          # [TẦNG 4] Frameworks & Drivers
-    ├── database/            # psycopg2 pool, SQL queries
-    └── fix_protocol/        # QuickFIX config, message serializer
+├── domain/          # [TẦNG 1] stdlib only: entities (Order, Position, Fill, Margin, Tick, Bar), strategy/calendar_rules
+├── application/     # [TẦNG 2] Ports (IBrokerGateway, ISignalGateway, ...) và use cases (TradingCycle, RiskMonitor)
+├── adapters/        # [TẦNG 3] data/ (DNSE candles, minute bars), strategies/ (Calendar MTW), brokers/ (Plutus)
+└── lab/             # Ngoài 4 tầng: engine nghiên cứu (backtest/, calibrum_1m/), được dùng pandas/numpy
+scripts/             # fetch_dnse_candles, run_calibrum_1m (các bước protocol), plot_calibrum_1m, plot_calibrum_positions
+research/calibrum-1m # PROTOCOL.md (khoá trước khi chạy) và RESULTS.md
+papertrade/          # Runtime Bước 7 trên AWS, venv và test riêng
 ```
 
 ### Quy tắc bất biến cho Agent:
-* **Tầng Domain (`src/domain/`):** Tuyệt đối **KHÔNG IMPORT** các thư viện bên ngoài như SQL, HTTP, Socket, QuickFIX, Pandas, Numpy. Chỉ sử dụng Python chuẩn (stdlib, dataclasses, Decimal, datetime).
-* **Tầng Application (`src/application/`):** Chỉ tương tác với Tầng Domain và các Interfaces (Ports). Không phụ thuộc vào triển khai cụ thể của sàn hay database.
-* **Tầng Adapters (`src/adapters/`):** Triển khai các Ports bằng cách kết nối với Plutus (`ExchangeSession`) hoặc PaperBroker (`FIX/REST`).
+* **Tầng Domain (`src/domain/`):** Tuyệt đối **KHÔNG IMPORT** thư viện ngoài (SQL, HTTP, socket, pandas, numpy). Chỉ dùng
+  Python chuẩn. `tests/test_clean_architecture.py` kiểm tra điều này.
+* **Tầng Application (`src/application/`):** Chỉ phụ thuộc Domain và các Port.
+* **Tầng Adapters (`src/adapters/`):** Triển khai Port hoặc cung cấp dữ liệu/tín hiệu cho lab và runtime.
 
 ---
 
-## 3. Cấu Hình Môi Trường (.env)
+## 3. Bí Mật và Cấu Hình
 
-Mọi bí mật và thông số kết nối được lưu trong `.env` (đã nằm trong `.gitignore`):
-
-```bash
-# PostgreSQL Production Data (Read-only Tick & Order Book)
-ALGOTRADE_DB_HOST=api.algotrade.vn
-ALGOTRADE_DB_PORT=5432
-ALGOTRADE_DB_NAME=algotradeDB
-ALGOTRADE_DB_USER=intern_read_only
-ALGOTRADE_DB_PASSWORD=...
-
-# Plutus Corpus Path
-PLUTUS_DATA_ROOT=data/aug2026_corpus
-```
-
-> **Cảnh báo bảo mật:** Tuyệt đối không hardcode mật khẩu, token, API keys vào các file Python hoặc tài liệu được commit vào Git. Luôn đọc qua `os.getenv(...)`. File mẫu không mang bí mật được lưu tại `.env.example`.
+Pipeline nghiên cứu không cần bí mật nào: DNSE là API công khai, cấu hình nằm ở `config/research.toml`. Credential của
+paper trading nằm trong `papertrade/.env` (gitignore). Tuyệt đối không hardcode mật khẩu, token, API key vào code hay tài
+liệu được commit.
 
 ---
 
-## 4. Dữ Liệu Cơ Sở Dữ Liệu (Postgres `algotradeDB`)
+## 4. Dữ Liệu
 
-Kho dữ liệu `algotradeDB` chứa 44 bảng. Khi viết query, luôn chú ý:
-* Bảng Tick: `quote.matched` `(datetime, tickersymbol, price)`
-* Bảng Volume Tick: `quote.matchedvolume` `(datetime, tickersymbol, quantity)`
-* Bảng Sổ Lệnh Mua/Bán: `quote.bidprice`, `quote.bidsize`, `quote.askprice`, `quote.asksize` `(datetime, tickersymbol, depth, price/quantity)`
-* Bảng Hợp Đồng Phái Sinh: `quote.futurecontractcode` `(tickersymbol, datetime, futurecode)`
-* **Quy tắc Index:** Luôn kèm `WHERE datetime >= ... AND datetime <= ...` trong mọi câu lệnh query để kích hoạt Primary B-Tree Index `(datetime, tickersymbol)`, tránh sequential scan toàn bảng.
+* Nến lưu đệm tại `data/dnse/` (gitignore), tải bằng `make fetch-data`.
+* Chỉ số VN30 trên DNSE chỉ có từ 11/05/2020, nên in-sample bắt đầu 01/06/2020.
+* Output nghiên cứu ở `reports/calibrum_1m/` (gitignore); hình cho README chép vào `image/README/`.
 
 ---
 
@@ -83,9 +66,7 @@ Khi giải quyết bất kỳ yêu cầu nào trong repo này, Agent phải tuâ
    ```bash
    ./scripts/run_owned_tests.sh
    ```
-3. **Giữ gìn nhánh:**
-   * Nhánh `main`: Chứa phiên bản ổn định, baseline đã kiểm chứng.
-   * Nhánh `refactor/clean-architecture`: Nhánh phát triển kiến trúc 4 tầng mới.
+3. **Giữ gìn nhánh:** `main` chứa phiên bản ổn định, đã kiểm chứng; việc mới làm trên nhánh riêng.
 
 ## 6. Triết Lý Nghiên Cứu (Bắt Buộc)
 

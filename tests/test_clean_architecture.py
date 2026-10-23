@@ -193,23 +193,23 @@ def test_risk_monitor_use_case_blocks_when_call():
     assert "exceeds safety threshold" in verdict.message or verdict.status != MarginCallStatus.NORMAL
 
 
-def test_trading_cycle_use_case_with_calibrum_signal_adapter():
-    """Verify TradingCycleUseCase dispatches orders based on CalibrumSignalAdapter."""
+def test_trading_cycle_use_case_follows_signal_targets():
+    """Verify TradingCycleUseCase dispatches orders to reach the gateway's target positions."""
     from src.application.ports.signal_port import ISignalGateway
     from src.application.use_cases.trading_cycle import TradingCycleUseCase
-    from src.adapters.strategies.calibrum_signal_source import (
-        CalibrumSignalAdapter,
-        CalibrumTargets,
-    )
 
     t1 = datetime(2024, 1, 2, 9, 30)
     t2 = datetime(2024, 1, 2, 10, 0)
-    targets = CalibrumTargets(
-        targets={t1: 2, t2: 0},
-        diagnostics={"test": True},
-    )
-    adapter = CalibrumSignalAdapter(targets)
-    assert isinstance(adapter, ISignalGateway)
+
+    class TargetTable(ISignalGateway):
+        def __init__(self, targets):
+            self.targets = targets
+
+        def get_target_position(self, timestamp, bar=None):
+            target = self.targets.get(timestamp, 0)
+            return target, f"TARGET_{target}"
+
+    adapter = TargetTable({t1: 2, t2: 0})
 
     submitted_orders = []
 

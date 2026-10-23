@@ -12,7 +12,6 @@ dependencies = [
     "duckdb>=1.0",
     "matplotlib>=3.8",
     "pandas>=2.2",
-    "psycopg2-binary>=2.9",
     "pyarrow>=15",
     "pytz>=2024.1",
     "torch>=2.0",

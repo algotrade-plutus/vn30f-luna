@@ -1,35 +1,43 @@
 UV ?= uv
+RUN = $(UV) run python scripts/run_calibrum_1m.py
+START ?= 2026-08-10
+END ?= 2026-08-14
 
-.PHONY: setup calibrum-insample calibrum-oos calibrum-forward plot test lint check
+.PHONY: setup fetch-data step5 step4 step6 benchmarks figures week test lint check
 
 setup:
 	git submodule update --init --recursive
 	$(UV) sync --frozen
 
-# Plutus runs: 300M VND, 3-contract cap for every ensemble so methods compare fairly.
-# vote trades 3 x sign(R+S+C); sum trades R+S+C in [-3, 3] (the runner multiplies sum by 3).
-ENSEMBLE ?= vote
-CAPITAL ?= 300000000
-PLUTUS_CONTRACTS = $(if $(filter sum,$(ENSEMBLE)),1,3)
-FORWARD_END ?= 2026-10-01
-PLUTUS_RUN = $(UV) run python scripts/run_calibrum_plutus.py --ensemble-mode $(ENSEMBLE) \
-	--capital $(CAPITAL) --contracts $(PLUTUS_CONTRACTS)
+# DNSE 1-minute bars, with 5-minute bars to fill the sessions DNSE lacks at 1 minute.
+fetch-data:
+	$(UV) run python scripts/fetch_dnse_candles.py --start 2018-08-01 --end $$(date +%F) --resolution 1
+	$(UV) run python scripts/fetch_dnse_candles.py --start 2018-08-01 --end $$(date +%F) --resolution 5
 
-calibrum-insample:
-	$(PLUTUS_RUN) --sample in_sample --start 2021-06-01 --end 2022-12-30 \
-		--report reports/calibrum_plutus_insample_$(ENSEMBLE)3_300m.json
+# Step 5 on in-sample only: Ridge lambda by cross-validation, Momentum threshold, Basis grid.
+step5:
+	$(RUN) momentum-cv
+	$(RUN) momentum-q
+	$(RUN) basis-grid
 
-calibrum-oos:
-	$(PLUTUS_RUN) --sample out_of_sample --start 2023-01-01 --end 2024-12-19 \
-		--report reports/calibrum_plutus_oos_$(ENSEMBLE)3_300m.json
+# Step 4: the seven combinations on in-sample with the starting parameters (needs the Ridge fit).
+step4:
+	$(RUN) in-sample-baseline
 
-# 2025 is left out; forward starts in 2026 and is the last check before paper trading.
-calibrum-forward:
-	$(PLUTUS_RUN) --sample forward --start 2026-01-01 --end $(FORWARD_END) \
-		--report reports/calibrum_plutus_forward_$(ENSEMBLE)3_300m.json
+# Step 6: valid chooses the final combination; each out-of-sample window opens once, in order.
+step6:
+	$(RUN) valid
+	$(RUN) oos1
+	$(RUN) oos2
 
-plot:
-	$(UV) run python scripts/plot_calibrum_backtest.py
+benchmarks:
+	$(RUN) benchmarks
+
+figures: benchmarks
+	$(UV) run python scripts/plot_calibrum_1m.py
+
+week:
+	$(UV) run python scripts/plot_calibrum_positions.py --start $(START) --end $(END)
 
 test:
 	./scripts/run_owned_tests.sh
@@ -56,25 +64,3 @@ papertrade-check:
 
 papertrade-dashboard:
 	./papertrade/scripts/open_dashboard.sh
-
-.PHONY: fetch-data step4 step5 step6 plutus-report
-
-fetch-data:
-	$(UV) run python scripts/fetch_dnse_candles.py
-
-step4:
-	$(UV) run python scripts/run_step4_insample.py --no-fetch --ensemble $(ENSEMBLE)
-
-step5:
-	$(UV) run python scripts/run_step5_selection.py
-
-step6:
-	$(UV) run python scripts/run_step6_oos.py --no-fetch --ensemble $(ENSEMBLE) --sample out_of_sample
-	$(UV) run python scripts/run_step6_oos.py --no-fetch --ensemble $(ENSEMBLE) --sample forward
-
-plutus-report:
-	$(UV) run python scripts/generate_plutus_report.py
-
-ensemble-research:
-	$(UV) run python scripts/run_ensemble_research.py --no-fetch
-

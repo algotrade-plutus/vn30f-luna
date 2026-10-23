@@ -19,9 +19,9 @@ from src.adapters.data.dnse_minute_bars import (
     labels_30m,
     load_futures_minutes,
     load_index_minutes,
+    roll_adjust_front_month,
 )
 from src.adapters.strategies.calendar_mtw_signal_source import calendar_mtw_stream, drop_atc
-from src.adapters.strategies.calibrum_signal_source import roll_adjust_front_month
 from src.lab.backtest import BacktestConfig, evaluate
 
 from . import basis, momentum
