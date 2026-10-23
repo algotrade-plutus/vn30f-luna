@@ -238,7 +238,10 @@ def in_sample_baseline(config: dict) -> None:
     daily_sleeves = pd.DataFrame({name: _daily_net(market, sleeves[name], config, start, end) for name in "CBM"})
     correlation = daily_sleeves.corr()
     print(f"baseline: {BASELINE}, momentum lambda {model.lam}, theta {theta:.4f}")
-    print(table[["net_points", "return_pct", "sharpe", "mdd_pct", "margin_bps", "trades", "hit_rate", "exposure", "peak_margin_utilisation_pct"]].round(3).to_string())
+    print(table[[
+        "net_points", "return_pct", "sharpe", "sortino", "information_ratio", "mdd_pct", "longest_drawdown_sessions",
+        "margin_bps", "trades", "hit_rate", "exposure", "peak_margin_utilisation_pct",
+    ]].round(3).to_string())
     print("\nnet points by year:")
     print(pd.DataFrame(yearly).T.round(1).to_string())
     print("\ndaily net PnL correlation:")
@@ -307,7 +310,10 @@ def _correlation(daily: dict[str, pd.Series], start: pd.Timestamp, end: pd.Times
 
 
 def _print_period(table: pd.DataFrame, period: str) -> None:
-    columns = ["net_million_vnd", "sharpe", "mdd_pct", "margin_bps", "trades", "hit_rate", "exposure"]
+    columns = [
+        "net_million_vnd", "sharpe", "sortino", "information_ratio", "mdd_pct", "longest_drawdown_sessions",
+        "margin_bps", "trades", "hit_rate", "exposure",
+    ]
     print(f"\n{period}:")
     print(table[table["period"] == period].set_index("combo")[columns].round(3).to_string())
 
@@ -364,11 +370,14 @@ def valid(config: dict) -> None:
     })
 
 
-def _out_of_sample(config: dict, period: str, requires: str) -> None:
-    """Open one out-of-sample window once, after everything it must not influence is saved."""
+def _out_of_sample(config: dict, period: str, requires: str, rerun: bool = False) -> None:
+    """Open one out-of-sample window once, after everything it must not influence is saved.
+
+    ``rerun`` recomputes an opened window with the saved choices, for reporting only.
+    """
     if not (OUT / f"{requires}.json").exists():
         raise SystemExit(f"run the {requires} stage first")
-    if (OUT / f"{period}.json").exists():
+    if (OUT / f"{period}.json").exists() and not rerun:
         raise SystemExit(f"{period} has already been opened; its report is {OUT / f'{period}.json'}")
     selected = _load("valid")["selected"]
     windows = pipeline.periods(config)
@@ -392,40 +401,34 @@ def _out_of_sample(config: dict, period: str, requires: str) -> None:
     })
 
 
-def oos1(config: dict) -> None:
+def oos1(config: dict, rerun: bool = False) -> None:
     """Step 6: OOS 1 (2025), opened once after the final combination is chosen and committed."""
-    _out_of_sample(config, "oos1", requires="valid")
+    _out_of_sample(config, "oos1", requires="valid", rerun=rerun)
 
 
-def oos2(config: dict) -> None:
+def oos2(config: dict, rerun: bool = False) -> None:
     """Step 6: OOS 2 (2026 to the last bar), opened once after OOS 1."""
-    _out_of_sample(config, "oos2", requires="oos1")
+    _out_of_sample(config, "oos2", requires="oos1", rerun=rerun)
 
 
 def benchmarks(config: dict) -> None:
     """Buy-and-hold references for the charts, one contract's worth, in daily points (no selection uses them).
 
-    VN30F1M: one contract held throughout and rolled at each expiry, measured on the
-    additive roll-adjusted series so the roll gap is not booked as profit; the entry
-    and each roll pay the strategy's cost. VN30: the index move per point, no cost.
+    VN30F1M: pipeline.buy_and_hold_points, the same series the information ratio
+    is measured against. VN30: the index move per point, no cost.
     """
     windows = pipeline.periods(config)
     start = windows["in_sample"][0]
     market = pipeline.load_market(pd.Timestamp("2100-01-01").date())
     cost = config["costs"]["points_per_contract_per_side"]
 
-    futures = market.futures_30m_adjusted.assign(Session=market.futures_30m_adjusted["Datetime"].dt.normalize())
-    futures = futures[futures["Session"] >= start]
-    daily_futures = futures.groupby("Session")["Close"].last().diff().fillna(0.0)
-    rolls = futures.groupby("Session")["Contract"].last().ne(futures.groupby("Session")["Contract"].last().shift())
-    daily_futures -= rolls.astype(float) * 2 * cost
-    daily_futures.iloc[0] -= cost
-
+    daily_futures = pipeline.buy_and_hold_points(market, cost, start)
+    rolls = market.futures_30m.loc[market.futures_30m["Datetime"] >= start, "Contract"].nunique() - 1
     index = market.index_30m.assign(Session=market.index_30m["Datetime"].dt.normalize())
     index = index[index["Session"] >= start]
     daily_index = index.groupby("Session")["Close"].last().diff().fillna(0.0)
 
-    print(f"VN30F1M buy and hold: {daily_futures.sum() * 0.1:+.1f}M VND, rolls {int(rolls.sum()) - 1}")
+    print(f"VN30F1M buy and hold: {daily_futures.sum() * 0.1:+.1f}M VND, rolls {rolls}")
     print(f"VN30 index buy and hold: {daily_index.sum() * 0.1:+.1f}M VND")
     _save("benchmarks", {
         "note": "one contract's worth, daily points; VN30F1M rolled on the additive adjusted series with costs",
@@ -451,8 +454,12 @@ STAGES = {
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("stage", choices=sorted(STAGES))
+    parser.add_argument("--rerun", action="store_true", help="recompute an opened OOS stage with the saved choices")
     args = parser.parse_args()
-    STAGES[args.stage](pipeline.load_config())
+    if args.rerun and args.stage not in ("oos1", "oos2"):
+        parser.error("--rerun applies to oos1 and oos2 only")
+    options = {"rerun": True} if args.rerun else {}
+    STAGES[args.stage](pipeline.load_config(), **options)
     return 0
 
 

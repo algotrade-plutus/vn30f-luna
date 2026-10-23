@@ -8,7 +8,10 @@ This version is rebuilt on DNSE 1-minute data and follows steps 1 to 6 of the AL
 |---|---:|---:|---:|---:|
 | Net profit (million VND) | 180.8 | 77.5 | **94.9** | **71.7** |
 | Sharpe | 2.76 | 2.03 | **3.20** | **2.87** |
+| Sortino | 4.92 | 3.38 | 5.45 | 5.22 |
+| Information ratio vs VN30F1M | 1.24 | 0.96 | 0.39 | 1.87 |
 | Max drawdown | 11.1% | 9.0% | 12.7% | 8.9% |
+| Longest drawdown (sessions) | 50 | 128 | 92 | 36 |
 
 *Final combination C+B+M, one contract on 100 million VND, after a cost of 0.4 index points (40,000 VND) per side. OOS 2 runs to 21 Oct 2026.*
 
@@ -135,7 +138,7 @@ All seven combinations (C, B, M, C+B, C+M, B+M, C+B+M) are tested; each holds at
 
 **Size.** One contract on 100 million VND, always; profits are not reinvested, so 1 million VND of profit is 1% return. Initial margin (dated by Plutus) takes about 20% of capital in 2022 and 36% in 2026, far from a margin call.
 
-**Metrics.** Sharpe follows Plutus (`plutus.evaluation.metrics`): $`r_t = \mathrm{PnL}_t / \mathrm{Equity}_{t-1}`$, $`\mathrm{Sharpe} = \sqrt{250}\,(\bar{r} - r_f/250)/\sigma_r`$ with $`r_f = 3\%`$. Also net profit, max drawdown, margin (net profit ÷ value traded, bps), trades, hit rate.
+**Metrics.** Sharpe follows Plutus (`plutus.evaluation.metrics`): $`r_t = \mathrm{PnL}_t / \mathrm{Equity}_{t-1}`$, $`\mathrm{Sharpe} = \sqrt{250}\,(\bar{r} - r_f/250)/\sigma_r`$ with $`r_f = 3\%`$. Sortino uses the same 3% as its threshold and only downside deviation; the information ratio is $`\sqrt{250}\,\overline{(r - r_b)}/\sigma_{r - r_b}`$ against holding one VN30F1M contract on the same capital; the longest drawdown counts sessions from a peak to the next new peak. Also net profit, max drawdown, margin (net profit ÷ value traded, bps), trades, hit rate.
 
 **Starting parameters** (before optimization): Basis W = 40, z_in = 1.5; Momentum λ = 1, trade the strongest 20% of scores.
 
@@ -217,6 +220,17 @@ Chosen W = 60, z_in = 1.5 (region 1.03, the best; all six neighbours profit). Ba
 ![Each sleeve alone, June 2020 to October 2026](image/README/full_equity_sleeves.png)
 
 ![Pairs and all three, June 2020 to October 2026](image/README/full_equity_combos.png)
+
+| C+B+M | In-sample | Valid | 2025 | 2026 |
+|---|---:|---:|---:|---:|
+| Sortino | 4.92 | 3.38 | 5.45 | 5.22 |
+| Information ratio vs VN30F1M | 1.24 | 0.96 | 0.39 | 1.87 |
+| Longest drawdown (sessions) | 50 | 128 | 92 | 36 |
+| Holding VN30F1M (M VND) | 27.6 | 27.0 | 71.0 | −13.3 |
+
+![Drawdown of C+B+M against holding VN30F1M, each period from 100 million VND](image/README/full_drawdown.png)
+
+Sortino is close to twice Sharpe in every period: most of the variance is on the upside. The information ratio is low in 2025 because the market rallied and the strategy, which barely moves with it, tracks it loosely even while making more; in 2026 the market fell and the ratio rises to 1.87. The longest drawdown, 128 sessions (31 Jan – 2 Aug 2023), is the yardstick for paper trading. The same metrics for every combination are in [`RESULTS.md`](research/calibrum-1m/RESULTS.md).
 
 Over six years, holding one futures contract made 112 million VND and the index 106 million, mostly in 2025; C+B+M made 425 million and kept climbing through 2021–2024, when the market went nowhere.
 

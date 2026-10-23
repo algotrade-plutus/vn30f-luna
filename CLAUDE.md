@@ -37,9 +37,9 @@ make check                 # test + lint + compileall of src/scripts/tests
 - Momentum (`momentum.py`): Ridge regression on five ATR-scaled features (median/IQR scaling frozen on in-sample), target = 2-bar forward move / ATR14; trades when |score| ≥ θ.
 - Combination: vote, `sign(C + B + M)`, one contract on 100 million VND.
 
-**Engine.** `pipeline.py` places each decision on the minute grid at the close of its signal bar (`grid.py`), checks stops at every minute close, flattens on expiry sessions and on the last row of each contract, and scores with `src/lab/backtest` (0.4 points per side). Sharpe and drawdown come from `plutus.evaluation.metrics` (√250, 3% risk-free rate, returns on account equity); the dated initial margin ratio from `plutus.market.margin`. Causality is a core invariant the tests check.
+**Engine.** `pipeline.py` places each decision on the minute grid at the close of its signal bar (`grid.py`), checks stops at every minute close, flattens on expiry sessions and on the last row of each contract, and scores with `src/lab/backtest` (0.4 points per side). Sharpe, Sortino, information ratio (against VN30F1M buy and hold), max and longest drawdown come from `plutus.evaluation.metrics` (√250, 3% risk-free rate and Sortino threshold, returns on account equity); the dated initial margin ratio from `plutus.market.margin`. Causality is a core invariant the tests check.
 
-**Stages.** `scripts/run_calibrum_1m.py <stage>` runs one protocol step and loads data only up to the last day that step may see; outputs go to `reports/calibrum_1m/`. The `oos1` and `oos2` stages refuse to run twice or out of order.
+**Stages.** `scripts/run_calibrum_1m.py <stage>` runs one protocol step and loads data only up to the last day that step may see; outputs go to `reports/calibrum_1m/`. The `oos1` and `oos2` stages refuse to run out of order, and to run twice unless given `--rerun` (recomputes with the saved choices, for reporting).
 
 **Clean Architecture layers in `src/`** (dependency rule in AGENTS.md): `domain/` may use only the stdlib (enforced by `tests/test_clean_architecture.py`); `application/` holds ports and use cases for the runtime; `adapters/` holds data, sleeve and broker adapters; `src/lab/` sits outside the layers and may use pandas.
 

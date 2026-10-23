@@ -35,6 +35,7 @@ benchmarks:
 
 figures: benchmarks
 	$(UV) run python scripts/plot_calibrum_1m.py
+	$(UV) run python scripts/plot_calibrum_drawdown.py
 
 week:
 	$(UV) run python scripts/plot_calibrum_positions.py --start $(START) --end $(END)

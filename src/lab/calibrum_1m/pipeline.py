@@ -10,7 +10,13 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from plutus.evaluation.metrics import maximum_drawdown, sharpe_ratio
+from plutus.evaluation.metrics import (
+    information_ratio,
+    longest_drawdown_duration,
+    maximum_drawdown,
+    sharpe_ratio,
+    sortino_ratio,
+)
 from plutus.market.margin import vsd_initial_margin
 from src.adapters.data.dnse_minute_bars import (
     bars_10m,
@@ -30,6 +36,7 @@ from .grid import completes_bar, crosses_roll, expiry_sessions, last_row_of_cont
 WORKSPACE = Path(__file__).resolve().parents[3]
 CONFIG_PATH = WORKSPACE / "config" / "research.toml"
 # Plutus's Vietnamese-market defaults (plutus.evaluation): 3% risk-free rate, 250 sessions a year.
+# Sortino uses the same 3% as its minimum acceptable return, so it reads next to Sharpe.
 RISK_FREE_RATE = Decimal("0.03")
 TRADING_DAYS = 250
 
@@ -128,6 +135,23 @@ def vote(*sleeves: np.ndarray) -> np.ndarray:
     return np.sign(np.sum(sleeves, axis=0))
 
 
+def buy_and_hold_points(market: Market, cost: float, start: pd.Timestamp | None = None) -> pd.Series:
+    """Daily points of one VN30F1M contract held from ``start`` and rolled at each expiry.
+
+    Measured on the additive roll-adjusted series so the roll gap is not booked
+    as profit; the entry and each roll pay the strategy's cost.
+    """
+    futures = market.futures_30m_adjusted.assign(Session=market.futures_30m_adjusted["Datetime"].dt.normalize())
+    if start is not None:
+        futures = futures[futures["Session"] >= start]
+    sessions = futures.groupby("Session")
+    daily = sessions["Close"].last().diff().fillna(0.0)
+    contract = sessions["Contract"].last()
+    daily -= contract.ne(contract.shift()).astype(float) * 2 * cost
+    daily.iloc[0] -= cost
+    return daily
+
+
 def account_returns(daily_points: pd.Series, capital: float, point_vnd: float) -> list[Decimal]:
     """Daily returns of an account that starts with ``capital`` and keeps its profit and loss."""
     pnl = daily_points.to_numpy(float) * point_vnd
@@ -148,6 +172,7 @@ def score_periods(
     capital = config["account"]["capital_per_contract_vnd"]
     point_vnd = config["account"]["multiplier_vnd_per_point"]
     stream = pd.DataFrame({"Datetime": market.minutes["Datetime"], "Close": market.close, "Position": position})
+    benchmark = buy_and_hold_points(market, cost)
     result = evaluate(stream, BacktestConfig(round_trip_fee_points=2 * cost))
     accounting, trades = result.frame, result.trades
     rates = {day: float(vsd_initial_margin(day)) for day in accounting["SessionDate"].dt.date.unique()}
@@ -162,12 +187,15 @@ def score_periods(
             continue
         daily = part.groupby("SessionDate")["NetGain"].sum()
         returns = account_returns(daily, capital, point_vnd)
+        benchmark_returns = account_returns(benchmark.reindex(daily.index, fill_value=0.0), capital, point_vnd)
         pnl = part["NetGain"].cumsum()
         notional = float((part["Close"] * part["PositionChange"]).sum())
         net = float(part["NetGain"].sum())
         in_window = trades[(trades["EntryDatetime"] >= start) & (trades["EntryDatetime"] < end + pd.Timedelta(days=1))]
         sharpe = sharpe_ratio(returns, risk_free_rate=RISK_FREE_RATE, annualization_factor=TRADING_DAYS)
         drawdown = maximum_drawdown(returns)
+        sortino = sortino_ratio(returns, min_acceptable_return=RISK_FREE_RATE, annualization_factor=TRADING_DAYS)
+        information = information_ratio(returns, benchmark_returns, annualization_factor=TRADING_DAYS)
         rows[name] = {
             "net_points": net,
             "net_million_vnd": net * point_vnd / 1e6,
@@ -175,6 +203,11 @@ def score_periods(
             "sharpe": float(sharpe) if sharpe is not None else float("nan"),
             "mdd_points": float((pnl.cummax() - pnl).max()),
             "mdd_pct": -float(drawdown) * 100.0 if drawdown is not None else float("nan"),
+            "sortino": float(sortino) if sortino is not None else float("nan"),
+            # Against VN30F1M buy and hold, one contract on the same capital.
+            "information_ratio": float(information) if information is not None else float("nan"),
+            # Sessions from a peak to the next new peak; a drawdown still open at the window end counts.
+            "longest_drawdown_sessions": longest_drawdown_duration(returns) or 0,
             "margin_bps": net / notional * 1e4 if notional else float("nan"),
             "trades": int(len(in_window)),
             "hit_rate": float((in_window["NetPoints"] > 0).mean()) if len(in_window) else float("nan"),

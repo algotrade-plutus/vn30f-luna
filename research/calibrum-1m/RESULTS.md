@@ -212,6 +212,58 @@ Mở một lần ngày 22/10/2026 (`run_calibrum_1m.py oos2`, nến cuối 21/10
 IC của score Momentum trên OOS 2: −0,004. Momentum lỗ 9,3 triệu đồng: score không còn dự báo được chiều giá năm 2026,
 khớp với chẩn đoán trước đó trên bản Ridge cũ. Tổ hợp cuối C+B+M vẫn lãi 71,7 triệu, Sharpe 2,87; C+B tốt nhất năm này.
 
+## Metric bổ sung: Sortino, Information Ratio, Longest drawdown
+
+Tính ngày 23/10/2026, sau khi mọi lựa chọn và cả hai OOS đã chốt, chỉ để báo cáo, không đổi lựa chọn nào. Hàm của
+Plutus (`plutus.evaluation.metrics`), lợi suất ngày trên vốn 100 triệu đồng như Sharpe. Chạy lại `in-sample-baseline`,
+`valid`, `oos1 --rerun`, `oos2 --rerun`: mọi cột cũ khớp đúng số cũ. Số dưới lấy từ lần chạy liền đến 21/10/2026.
+
+- **Sortino**: √250 · (r̄ − 3%/250) / độ lệch chiều xuống, ngưỡng 3% như rf của Sharpe.
+- **Information Ratio**: √250 · trung bình(r − r_bench) / độ lệch chuẩn(r − r_bench), benchmark là mua giữ VN30F1M,
+  1 hợp đồng trên cùng 100 triệu (đường xám trên biểu đồ). Mua giữ lãi 27,6 / 27,0 / 71,0 / −13,3 triệu đồng trong
+  in-sample / valid / 2025 / 2026.
+- **Longest drawdown**: số phiên lâu nhất từ một đỉnh vốn đến đỉnh mới kế tiếp; drawdown còn mở ở cuối giai đoạn cũng
+  tính (in-sample và valid của C+B+M kết thúc khi đang dưới đỉnh 10 và 17 phiên).
+
+| Sortino | In-sample | Valid | OOS 1 | OOS 2 |
+|---|---:|---:|---:|---:|
+| C | 3,03 | 3,01 | 3,93 | 6,46 |
+| B | 1,61 | 2,42 | 1,25 | 0,96 |
+| M | 3,21 | 0,70 | 3,75 | −1,18 |
+| C+B | 3,24 | 3,13 | 3,95 | 6,80 |
+| C+M | 4,94 | 2,96 | 5,05 | 5,46 |
+| B+M | 3,32 | 2,97 | 2,75 | 0,34 |
+| **C+B+M** | **4,92** | **3,38** | **5,45** | **5,22** |
+
+| Information Ratio | In-sample | Valid | OOS 1 | OOS 2 |
+|---|---:|---:|---:|---:|
+| C | 0,91 | 0,74 | −0,02 | 2,16 |
+| B | 0,22 | 0,36 | −0,85 | 0,53 |
+| M | 0,38 | −0,37 | −0,90 | −0,05 |
+| C+B | 0,98 | 0,86 | −0,00 | 2,20 |
+| C+M | 1,24 | 0,76 | 0,35 | 1,93 |
+| B+M | 0,67 | 0,55 | −0,42 | 0,33 |
+| **C+B+M** | **1,24** | **0,96** | **0,39** | **1,87** |
+
+| Longest drawdown (phiên) | In-sample | Valid | OOS 1 | OOS 2 |
+|---|---:|---:|---:|---:|
+| C | 74 | 153 | 80 | 38 |
+| B | 106 | 64 | 113 | 125 |
+| M | 131 | 141 | 63 | 159 |
+| C+B | 93 | 110 | 112 | 20 |
+| C+M | 62 | 125 | 27 | 56 |
+| B+M | 107 | 98 | 81 | 160 |
+| **C+B+M** | **50** | **128** | **92** | **36** |
+
+- Sortino của C+B+M cao gần gấp đôi Sharpe ở mọi giai đoạn: phần biến động chủ yếu nằm ở chiều lãi.
+- IR năm 2025 thấp (0,39) vì thị trường tăng mạnh (mua giữ +71,0 triệu); C+B+M vẫn lãi hơn (+94,9) nhưng ít tương quan
+  với thị trường nên độ lệch so với benchmark lớn. Năm 2026 mua giữ lỗ, IR lên 1,87.
+- Drawdown dài nhất của C+B+M là 128 phiên trong valid (31/01/2023 – 02/08/2023, khoảng 6 tháng). Đây là mốc tham chiếu
+  khi theo dõi paper trade.
+
+Ở bước 4 (tham số ban đầu, in-sample), C+B+M có Sortino 4,45, IR 1,15, longest drawdown 72 phiên; số của 7 tổ hợp nằm
+trong `reports/calibrum_1m/in_sample_baseline.json`.
+
 ## Chưa chạy
 
 DSR với N ≥ 418; phán quyết theo chế độ Phán quyết của skill algotrade-hypothesis.
