@@ -91,27 +91,37 @@ Parameters come from the separate Calendar MTW research and are not re-optimized
 
 ### Basis (30-minute bars)
 
-$$B_t = F_t - I_t, \qquad Z_t = \frac{B_t - \mu_W(B)_t}{\sigma_W(B)_t}$$
+```math
+B_t = F_t - I_t, \qquad Z_t = \frac{B_t - \mu_W(B)_t}{\sigma_W(B)_t}
+```
 
-Enter long when $Z_t \le -z_{in}$, short when $Z_t \ge z_{in}$; flip at the opposite extreme after at least 2 bars; stop at a 14-point loss checked at every minute; restart at each new contract; flat on expiry day and on days without index data.
+Enter long when $`Z_t \le -z_{in}`$, short when $`Z_t \ge z_{in}`$; flip at the opposite extreme after at least 2 bars; stop at a 14-point loss checked at every minute; restart at each new contract; flat on expiry day and on days without index data.
 
 ### Momentum (30-minute bars, Ridge regression)
 
 Five measures of how strongly the price is running, each in ATR units:
 
-$$x_1 = \frac{C_t - \mathrm{VWAP}_t}{\mathrm{ATR}_{14,t}},\quad x_2 = \frac{C_t - O_{09:00}}{\mathrm{ATR}_{14,t}},\quad x_3 = \frac{C_t - \mathrm{SMA}_4(C)_t}{\mathrm{ATR}_{14,t}}$$
+```math
+x_1 = \frac{C_t - \mathrm{VWAP}_t}{\mathrm{ATR}_{14,t}}, \qquad x_2 = \frac{C_t - O_{\text{09:00}}}{\mathrm{ATR}_{14,t}}, \qquad x_3 = \frac{C_t - \mathrm{SMA}_4(C)_t}{\mathrm{ATR}_{14,t}}
+```
 
-$$x_4 = \frac{\Sigma_4\,\mathrm{up}^2 - \Sigma_4\,\mathrm{down}^2}{\Sigma_4\,\mathrm{up}^2 + \Sigma_4\,\mathrm{down}^2},\quad x_5 = \frac{C_t - O_t}{\mathrm{ATR}_{14,t}},\quad z_j = \mathrm{clip}\!\left(\frac{x_j - \mathrm{med}_j}{\mathrm{IQR}_j}, -8, 8\right)$$
+```math
+x_4 = \frac{\sum_4 \mathrm{up}^2 - \sum_4 \mathrm{down}^2}{\sum_4 \mathrm{up}^2 + \sum_4 \mathrm{down}^2}, \qquad x_5 = \frac{C_t - O_t}{\mathrm{ATR}_{14,t}}, \qquad z_j = \mathrm{clip}\left(\frac{x_j - \mathrm{med}_j}{\mathrm{IQR}_j},\ -8,\ 8\right)
+```
 
 The target is the next hour’s move, and the weights minimise the fit error plus a penalty:
 
-$$y_t = \frac{C_{t+2} - C_t}{\mathrm{ATR}_{14,t}}, \qquad J(\beta_0, \beta) = \frac{1}{n}\sum_t \left(y_t - \beta_0 - z_t^\top\beta\right)^2 + \lambda\lVert\beta\rVert^2$$
+```math
+y_t = \frac{C_{t+2} - C_t}{\mathrm{ATR}_{14,t}}, \qquad J(\beta_0, \beta) = \frac{1}{n}\sum_t \left(y_t - \beta_0 - z_t^{\top}\beta\right)^2 + \lambda \lVert \beta \rVert^2
+```
 
-Score $s_t = \beta_0 + z_t^\top\beta$. Enter long when $s_t \ge \theta$, short when $s_t \le -\theta$, with $\theta$ the $q$-th percentile of $|s|$ on in-sample. Exit after at least 2 bars when the score changes sign, or after 8 bars; stop at a 10-point loss checked at every minute; flat from 14:00 on expiry day.
+Score $`s_t = \beta_0 + z_t^{\top}\beta`$. Enter long when $`s_t \ge \theta`$, short when $`s_t \le -\theta`$, with $`\theta`$ the $`q`$-th percentile of $`|s|`$ on in-sample. Exit after at least 2 bars when the score changes sign, or after 8 bars; stop at a 10-point loss checked at every minute; flat from 14:00 on expiry day.
 
 ### Combining
 
-$$p_t = \mathrm{sign}\left(p^C_t + p^B_t + p^M_t\right)$$
+```math
+p_t = \mathrm{sign}\left(p^C_t + p^B_t + p^M_t\right)
+```
 
 All seven combinations (C, B, M, C+B, C+M, B+M, C+B+M) are tested; each holds at most one contract on 100 million VND.
 
@@ -125,7 +135,7 @@ All seven combinations (C, B, M, C+B, C+M, B+M, C+B+M) are tested; each holds at
 
 **Size.** One contract on 100 million VND, always; profits are not reinvested, so 1 million VND of profit is 1% return. Initial margin (dated by Plutus) takes about 20% of capital in 2022 and 36% in 2026, far from a margin call.
 
-**Metrics.** Sharpe follows Plutus (`plutus.evaluation.metrics`): $r_t = \mathrm{PnL}_t / \mathrm{Equity}_{t-1}$, $\mathrm{Sharpe} = \sqrt{250}\,(\bar r - r_f/250)/\sigma_r$ with $r_f = 3\%$. Also net profit, max drawdown, margin (net profit ÷ value traded, bps), trades, hit rate.
+**Metrics.** Sharpe follows Plutus (`plutus.evaluation.metrics`): $`r_t = \mathrm{PnL}_t / \mathrm{Equity}_{t-1}`$, $`\mathrm{Sharpe} = \sqrt{250}\,(\bar{r} - r_f/250)/\sigma_r`$ with $`r_f = 3\%`$. Also net profit, max drawdown, margin (net profit ÷ value traded, bps), trades, hit rate.
 
 **Starting parameters** (before optimization): Basis W = 40, z_in = 1.5; Momentum λ = 1, trade the strongest 20% of scores.
 
@@ -153,7 +163,9 @@ All choices use in-sample only.
 
 **Momentum penalty λ.** Four expanding folds inside in-sample (fit from June 2020, test on 2021-H1, 2021-H2, 2022-H1, 2022-H2; 2 bars purged at the seam):
 
-$$\lambda^* = \arg\min_\lambda \frac{1}{4}\sum_{f=1}^{4}\mathrm{MSE}_f(\lambda)$$
+```math
+\lambda^* = \arg\min_{\lambda} \frac{1}{4}\sum_{f=1}^{4} \mathrm{MSE}_f(\lambda)
+```
 
 | λ | 0.01 | 0.1 | **1** | 10 | 100 |
 |---|---:|---:|---:|---:|---:|
