@@ -52,3 +52,6 @@ papertrade/state/
 papertrade/logs/
 papertrade/.pytest_cache/
 papertrade/.ruff_cache/
+
+# Claude Code local files (skills, settings)
+.claude/
