@@ -26,7 +26,10 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from . import basis as basis_sleeve
+from . import momentum as momentum_sleeve
 from . import pipeline
+from .grid import completes_bar
 from .momentum import RidgeModel
 
 LIVE_CONFIG = pipeline.WORKSPACE / "config" / "calibrum_live.toml"
@@ -53,6 +56,10 @@ class Targets:
     basis: int
     momentum: int
     vote: int
+    # What the sides were decided from, for monitoring: the numbers of the last closed 30-minute bar.
+    basis_z: float | None = None  # z on the window so far, also while warming up
+    basis_bars: int = 0  # 30-minute bars of the current contract; Basis trades from basis_window
+    momentum_score: float | None = None
 
 
 def load_params(path: Path = LIVE_CONFIG) -> LiveParams:
@@ -111,6 +118,7 @@ def targets(minutes: pd.DataFrame, index_minutes: pd.DataFrame, now: pd.Timestam
     calendar = pipeline.calendar_mtw_positions(market)[-1]
     basis = pipeline.basis_positions(market, params.basis_window, params.basis_z_entry)[-1]
     momentum = pipeline.momentum_positions(market, params.model, params.momentum_theta)[-1]
+    basis_z, basis_bars, momentum_score = _readings(market, params)
     return Targets(
         now=now,
         last_minute=futures["Datetime"].iloc[-1],
@@ -119,4 +127,29 @@ def targets(minutes: pd.DataFrame, index_minutes: pd.DataFrame, now: pd.Timestam
         basis=int(basis),
         momentum=int(momentum),
         vote=int(np.sign(calendar + basis + momentum)),
+        basis_z=basis_z,
+        basis_bars=basis_bars,
+        momentum_score=momentum_score,
     )
+
+
+def _readings(market: pipeline.Market, params: LiveParams) -> tuple[float | None, int, float | None]:
+    """At the last closed 30-minute bar: Basis z (also while warming up), the contract's bar count, the Momentum score."""
+    labels = market.labels_30m
+    closed = labels[completes_bar(labels, market.next_label(labels))]
+    if closed.empty:
+        return None, 0, None
+    last = closed.iloc[-1]
+    futures = market.futures_30m[market.futures_30m["Datetime"] <= last]
+    bars = futures[futures["Contract"] == futures["Contract"].iloc[-1]]
+    spot = market.index_30m[["Datetime", "Close"]].rename(columns={"Close": "Spot"})
+    merged = pd.merge_asof(bars[["Datetime", "Close"]], spot, on="Datetime")
+    spread = merged["Close"] - merged["Spot"]
+    rolling = spread.rolling(params.basis_window, min_periods=basis_sleeve.MIN_PERIODS)
+    z = ((spread - rolling.mean()) / (rolling.std() + 1e-6)).iloc[-1]
+    features = momentum_sleeve.feature_frame(market.futures_30m_adjusted)
+    features = features[features["Datetime"] <= last]
+    scores = params.model.score(features[list(momentum_sleeve.FEATURES)].to_numpy(float))
+    score = scores[-1] if len(scores) else np.nan
+    as_float = lambda value: None if not np.isfinite(value) else round(float(value), 3)  # noqa: E731
+    return as_float(z), int(len(bars)), as_float(score)
