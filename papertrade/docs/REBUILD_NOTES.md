@@ -162,6 +162,13 @@ API chart công khai của DNSE (`https://api.dnse.com.vn/chart-api/v2/ohlcs/{de
   load balancer. Không cho thời gian nến lùi; chỉ chốt nến khi hai lần đọc liên tiếp trùng nhau; quá khoảng 30 s sau mốc
   phút mà chưa có nến thì báo stale và không ra quyết định mới.
 - Nếu cần realtime hơn: DNSE có market data qua MQTT, cần tài khoản DNSE.
+- DNSE chỉ công bố một phút **khi phút sau bắt đầu có giao dịch**: phút 11:29 hiện ra lúc 13:00, phút 14:29 lúc ATC
+  14:45. Luật "feed cũ hơn 90 s thì không đặt lệnh" tự chờ qua giờ nghỉ trưa và đầu phiên.
+- **Quyết định trước ATC:** print 14:30 chỉ có ở 18% số phiên, nên nến 14:20 (10 phút) và 14:00 (30 phút) thường đóng ở
+  phút 14:29, đúng lúc ATC bắt đầu. Live bỏ phút 14:29 và 14:30, nên các nến này đóng ở 14:28 (phút đó công bố lúc
+  khoảng 14:29:02) và lệnh khớp trước 14:30. Backtest phương án này: C+B+M 407 so với 425 triệu cả giai đoạn; Sharpe
+  in-sample 2,57 / valid 1,71 / OOS1 3,29 / OOS2 2,86 (bản gốc 2,76 / 2,03 / 3,20 / 2,87). Bỏ thêm 11:29 tốn nhiều hơn
+  (394 triệu) nên buổi trưa giữ nguyên: lệnh ra lúc nghỉ trưa khớp lúc 13:00. Test parity của live so với phương án này.
 
 ## 8. Yêu cầu cho runtime Calibrum
 
