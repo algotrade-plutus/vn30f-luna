@@ -188,11 +188,23 @@ Nguyên tắc dựng lại:
    với backtest. Mốc cảnh báo: drawdown dài hơn 128 phiên hoặc sâu hơn khoảng 13%.
 6. **Một lịch giao dịch.** Lịch lễ và luật đáo hạn dùng chung `src/domain/strategy/calendar_rules.py`.
 
-## 9. Việc cần làm trước khi deploy
+## 9. Quyết định đã chốt (23/10/2026)
+
+- **Khối lượng:** 10 hợp đồng cố định trên tài khoản khoảng 549 triệu (Arena mặc định 500 triệu). Gấp đôi tỷ lệ của
+  backtest (1 hợp đồng / 100 triệu); ký quỹ 25% của 10 hợp đồng khoảng 475–500 triệu.
+- **Khi mở lệnh mà không đủ sức mua:** mở `min(10, get_max_placeable)` và ghi log phần bị thiếu.
+- **Khi đang giữ mà thiếu ký quỹ:** mỗi phút đọc `remain_cash` (tài sản trừ ký quỹ đang giữ); nếu âm, bán
+  ⌈−remain_cash / ký quỹ một hợp đồng⌉ hợp đồng, giữ nguyên chiều. Mô phỏng 10 hợp đồng: 2023–24 và 2026 không lần nào
+  thiếu; 2025 thiếu ở 44 phiên (21/04 – cuối 05/2025), sâu nhất 51,6 triệu, phải cắt tối đa 2 hợp đồng.
+- **Vị trí code:** core trong `src/lab/calibrum_1m/live.py` (dùng lại lab, test parity); runtime mới trong
+  `papertrade/calibrum/`; code bot cũ sẽ xoá (còn trong git).
+
+## 10. Việc cần làm trước khi deploy
 
 - [ ] Lấy `.env.aws` về local (lệnh ở mục 2).
 - [x] Dừng bot cũ và đóng 8 hợp đồng Long (23/10/2026 10:57).
 - [x] Nguồn spot VN30: DNSE (mục 7), trễ 1–2 s.
 - [ ] Tìm nguyên nhân container dừng mỗi sáng khoảng 07:00 (37 lần restart).
-- [ ] Quyết định qty cho Calibrum trên tài khoản paper (backtest: 1 hợp đồng / 100 triệu).
+- [x] Qty: 10 hợp đồng cố định, luật sức mua và luật thiếu ký quỹ ở mục 9.
+- [ ] Hỏi admin: PaperTrade có call margin hoặc tự thanh lý khi thiếu ký quỹ không.
 - [ ] AWS CLI local đang dùng credential **root**; nên tạo IAM user hoặc role quyền tối thiểu cho vận hành.
