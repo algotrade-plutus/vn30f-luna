@@ -31,7 +31,7 @@ src/
 └── lab/             # Ngoài 4 tầng: engine nghiên cứu (backtest/, calibrum_1m/), được dùng pandas/numpy
 scripts/             # fetch_dnse_candles, run_calibrum_1m (các bước protocol), plot_calibrum_1m, plot_calibrum_positions
 research/calibrum-1m # PROTOCOL.md (khoá trước khi chạy) và RESULTS.md
-papertrade/          # Runtime Bước 7 trên AWS, venv và test riêng
+papertrade/          # Runtime Bước 7 trên AWS: calibrum/ (feed, execution, broker), deploy/ (systemd), ops/
 ```
 
 ### Quy tắc bất biến cho Agent:
@@ -45,7 +45,8 @@ papertrade/          # Runtime Bước 7 trên AWS, venv và test riêng
 ## 3. Bí Mật và Cấu Hình
 
 Pipeline nghiên cứu không cần bí mật nào: DNSE là API công khai, cấu hình nằm ở `config/research.toml`. Credential của
-paper trading nằm trong `papertrade/.env` (gitignore). Tuyệt đối không hardcode mật khẩu, token, API key vào code hay tài
+paper trading nằm trong AWS Secrets Manager `/algotrade/paperbroker` (EC2 render ra `/run/algotrade/`); bản local,
+nếu có, nằm trong `papertrade/.env*` (gitignore). Tuyệt đối không hardcode mật khẩu, token, API key vào code hay tài
 liệu được commit.
 
 ---

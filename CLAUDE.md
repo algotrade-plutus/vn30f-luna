@@ -25,7 +25,7 @@ make check                 # test + lint + compileall of src/scripts/tests
 ./scripts/run_owned_tests.sh tests/test_calibrum_1m.py::test_name
 ```
 
-`papertrade/` (Step 7 paper runtime on AWS) has its own venv and test suite: `make papertrade-setup`, `make papertrade-test`.
+`papertrade/` is the Step 7 paper runtime (`papertrade/calibrum/`: DNSE feed, live targets from `src/lab/calibrum_1m/live.py`, execution, broker), run by systemd on the AWS EC2. `make papertrade-test`, `make papertrade-deploy`, `make papertrade-status`; see `papertrade/README.md` and `papertrade/docs/REBUILD_NOTES.md`.
 
 ## Architecture
 

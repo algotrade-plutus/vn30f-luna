@@ -1,0 +1,21 @@
+[Unit]
+Description=Calibrum paper trading (one trading day per run)
+After=docker.service network-online.target
+Wants=network-online.target
+Requires=docker.service
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+Environment=AWS_REGION=ap-southeast-1
+Environment=ALGOTRADE_SECRET_ID=/algotrade/paperbroker
+ExecStart=/opt/calibrum/deploy/calibrum-run.sh
+ExecStop=-/usr/bin/docker stop -t 60 calibrum-live
+# The runner exits 0 after the session and on non-trading days; anything else is retried.
+Restart=on-failure
+RestartSec=60
+TimeoutStopSec=75
+
+[Install]
+# Started at boot too, so a reboot during a session brings the runner back.
+WantedBy=multi-user.target

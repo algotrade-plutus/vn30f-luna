@@ -1,0 +1,9 @@
+[Unit]
+Description=Start Calibrum paper trading on weekday mornings (08:30 ICT)
+
+[Timer]
+OnCalendar=Mon..Fri *-*-* 01:30:00 UTC
+Unit=calibrum.service
+
+[Install]
+WantedBy=timers.target

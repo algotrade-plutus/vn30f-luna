@@ -163,6 +163,7 @@ def test_halt_file_stops_new_orders(tmp_path, monkeypatch) -> None:
 
     runner.trade(CONTINUOUS)
     assert broker.sent == []
+    assert runner.blocked_by == "HALT file present"
 
 
 def test_a_fill_stamped_before_the_ack_still_counts() -> None:

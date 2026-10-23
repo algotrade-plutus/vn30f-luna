@@ -262,7 +262,7 @@ The full record, including every amendment made after a result was seen, is in [
 
 ## 7. Paper trading
 
-Paper trading on the exchange’s paper platform has run since 25 Aug 2026 (`papertrade/`, deployed on AWS). Calibrum C+B+M is the next strategy to deploy there; from 22 Oct 2026 the data is blind.
+Calibrum C+B+M trades on the exchange’s paper platform from 26 Oct 2026, 10 contracts, from an AWS EC2 (`papertrade/`). The runtime builds its targets with the same code as the backtest, on the same DNSE 1-minute bars; one difference is deliberate: the bars that end the continuous session close at 14:28 so orders fill before the closing auction (backtest of that variant: 407 instead of 425 million VND, OOS Sharpe 3.29 and 2.86). From 22 Oct 2026 the data is blind.
 
 ---
 

@@ -4,6 +4,10 @@ Modes (CALIBRUM_MODE):
 - observe: feed and targets only; no broker connection, no orders.
 - active: also reads the account and trades, if PAPERBROKER_ALLOW_ORDERS=true.
 
+One process covers one trading day: it waits until 08:30 (the PaperTrade FIX
+session resets at 07:00), exits at once on a non-trading day, and exits at
+``--exit-at`` (15:00). systemd starts it on weekday mornings and at boot.
+
 A HALT file in the state directory stops new orders at once and survives restarts.
 Every target and every order goes to ``journal.jsonl``; ``health.json`` holds
 the current state. Neither ever holds a credential.
@@ -12,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from datetime import time as clock_time
 import os
 import sys
 import time
@@ -27,7 +32,10 @@ if str(WORKSPACE) not in sys.path:
 
 from papertrade.calibrum.execution import phase, plan  # noqa: E402
 from papertrade.calibrum.feed import FUTURES, INDEX, DnseFeed  # noqa: E402
+from src.domain.strategy.calendar_rules import is_trading_day  # noqa: E402
 from src.lab.calibrum_1m import live  # noqa: E402
+
+DAY_START = clock_time(8, 30)
 
 POLL_S = 2.0
 FEED_STALE_S = 90.0
@@ -77,6 +85,14 @@ class Runner:
         self.ahead_since: float | None = None
         self.last_account = None
         self.last_read = 0.0
+        self.blocked_by: str | None = None
+
+    def block(self, reason: str | None) -> bool:
+        """Journal a block reason only when it changes; returns whether trading is blocked."""
+        if reason != self.blocked_by:
+            self.journal.write("blocked" if reason else "unblocked", reason=reason or self.blocked_by)
+            self.blocked_by = reason
+        return reason is not None
         self.last_error: str | None = None
 
     @property
@@ -116,14 +132,18 @@ class Runner:
 
     def trade(self, now: pd.Timestamp) -> None:
         broker, symbol = self.broker, self.symbol()
-        if broker.symbol != symbol:
-            self.journal.write("blocked", reason=f"runtime trades {broker.symbol}, targets are for {symbol}")
-            return
-        if self.halted:
-            return
         age = self.feed.age_seconds(FUTURES, now)
-        if phase(now) == "continuous" and (age is None or age > FEED_STALE_S):
-            self.journal.write("blocked", reason=f"DNSE futures feed {age}s old")
+        if broker.symbol != symbol:
+            reason = f"runtime trades {broker.symbol}, targets are for {symbol}"
+        elif self.halted:
+            reason = "HALT file present"
+        elif not broker.logged_on():
+            reason = "FIX not logged on"
+        elif phase(now) == "continuous" and (age is None or age > FEED_STALE_S):
+            reason = "DNSE futures feed stale"
+        else:
+            reason = None
+        if self.block(reason):
             return
 
         if self.pending is not None:
@@ -177,6 +197,9 @@ class Runner:
             stale_reads={series[1]: book.stale_reads for series, book in self.feed.books.items()},
             revisions={series[1]: book.revisions for series, book in self.feed.books.items()},
             fix_logged_on=None if self.broker is None else self.broker.logged_on(),
+            position=None if self.last_account is None else self.last_account.position,
+            remain_cash_million=None if self.last_account is None else round(self.last_account.remain_cash / 1e6, 1),
+            blocked_by=self.blocked_by,
             last_error=self.last_error,
         )
 
@@ -201,10 +224,20 @@ def main() -> int:
     parser.add_argument("--mode", choices=("observe", "active"), default=os.getenv("CALIBRUM_MODE", "observe"))
     parser.add_argument("--qty", type=int, default=int(os.getenv("CALIBRUM_QTY", "10")))
     parser.add_argument("--state-dir", type=Path, default=Path(os.getenv("CALIBRUM_STATE_DIR", "runtime")))
-    parser.add_argument("--until", help="stop at this exchange time, e.g. '2026-10-23 14:46'")
+    parser.add_argument("--exit-at", default=os.getenv("CALIBRUM_EXIT_AT", "15:00"), help="exchange time to exit, HH:MM")
     args = parser.parse_args()
     if not 1 <= args.qty <= 10:
         parser.error("qty must be between 1 and 10")
+
+    today = now_ict()
+    until = today.normalize() + pd.Timedelta(args.exit_at + ":00")
+    if not is_trading_day(today.date()) or today >= until:
+        print(f"{today:%Y-%m-%d %H:%M} no session to run", flush=True)
+        return 0
+    start = today.normalize() + pd.Timedelta(hours=DAY_START.hour, minutes=DAY_START.minute)
+    if today < start:
+        print(f"waiting until {start:%H:%M}", flush=True)
+        time.sleep((start - today).total_seconds())
 
     broker = quotes = None
     if args.mode == "active":
@@ -224,7 +257,7 @@ def main() -> int:
         quotes = KafkaQuotes()
     runner = Runner(args.mode, args.qty, args.state_dir, broker, quotes)
     try:
-        runner.run(pd.Timestamp(args.until) if args.until else None)
+        runner.run(until)
     finally:
         if quotes is not None:
             quotes.stop()

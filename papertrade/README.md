@@ -1,54 +1,45 @@
-# Algotrade Paper Trading
+# Calibrum paper trading
 
-Khu vực tách biệt để chạy alpha trên PaperTrade Algotrade. Code nghiên cứu trong
-`alphas/` của repo không import trực tiếp `paperbroker`; adapter tại đây là biên
-giới giữa signal của ta và FIX/REST/Kafka của họ.
+Chạy Calibrum C+B+M trên PaperTrade Algotrade, 10 hợp đồng VN30F1M, từ một EC2 ở Singapore. Ghi chú thiết kế, lỗi đã
+gặp và quyết định: [docs/REBUILD_NOTES.md](docs/REBUILD_NOTES.md).
 
-## Bố cục
+## Cách nó chạy
 
-- `alphas/`: alpha dành riêng cho paper trading.
-- `algotrade_adapter/`: validation, safety gate và workaround cho client 0.2.8.
-- `dashboard/`: web monitor private, read-only từ snapshot đã loại credential.
-- `examples/official/`: 15 file `.py` tải nguyên bản từ docs ngày 2026-08-24.
-- `docs/`: sổ tay API, vận hành và các lỗi đã xác minh.
-- `scripts/`: cài môi trường và smoke test chỉ-đọc.
-- `vendor/`: wheel chính thức `paperbroker-client==0.2.8`.
-
-`.env` chứa credential thật, đã bị git-ignore. Không copy credential vào
-source, log, notebook hay commit.
-
-## Khởi tạo
-
-```bash
-cd papertrade
-./scripts/bootstrap.sh
-source .venv/bin/activate
-python scripts/diagnose.py
-python scripts/smoke_kafka.py --seconds 15 --offset earliest
+```
+DNSE nến 1 phút (F + VN30) ─► calibrum/feed.py      chốt nến khi 2 lần đọc trùng nhau, không bao giờ lùi
+                              src/lab/calibrum_1m/live.py   target C, B, M và vote bằng đúng code backtest
+                              calibrum/execution.py  vote → tối đa một lệnh: chặn, cắt ký quỹ, đóng, mở
+                              calibrum/broker.py     cổng duy nhất tới FIX/REST, vá lỗi SDK 0.2.8
+                              calibrum/quotes.py     bid/ask từ Kafka, chỉ để định giá lệnh
+                              calibrum/runner.py     vòng lặp mỗi 2 giây, journal.jsonl, health.json
 ```
 
-Trên macOS Apple Silicon, lệnh mặc đị cài REST + Kafka. Muốn bật FIX native:
+- **Mỗi ngày giao dịch:** `calibrum.timer` khởi động `calibrum.service` lúc 08:30 ICT thứ Hai đến thứ Sáu; service cũng
+  bật khi EC2 boot. Runner chờ tới 08:30 nếu khởi động sớm, thoát ngay nếu là ngày nghỉ, thoát lúc 15:00. Lỗi thì
+  systemd chạy lại sau 60 giây.
+- **Lệnh:** LIMIT vượt giá 0,3 điểm trong phiên liên tục, giá trần/sàn trong ATC; một lệnh một lúc; hủy sau 8 giây; đọc
+  REST trước mỗi quyết định. Mở `min(10, sức mua)`; thiếu ký quỹ thì cắt vừa đủ; đảo chiều thì về 0 trước.
+- **Chặn lệnh** (ghi vào journal khi lý do đổi): file HALT, FIX rớt, feed DNSE cũ hơn 90 giây trong phiên liên tục,
+  vị thế ở mã khác. Khởi động mà tài khoản còn lệnh chờ thì runner từ chối chạy.
+- **Bí mật:** AWS Secrets Manager `/algotrade/paperbroker`, `deploy/render-env.sh` ghi ra `/run/algotrade/` (mode 600).
+  Nút vận hành ở `/etc/calibrum/calibrum.env`: `CALIBRUM_MODE`, `CALIBRUM_QTY`, `CALIBRUM_ALLOW_ORDERS`.
 
-```bash
-./scripts/bootstrap.sh --with-fix
-python scripts/smoke_fix_login.py
-```
+## Vận hành (từ máy có AWS CLI)
 
-Smoke test không gửi lệnh. `PAPERBROKER_ALLOW_ORDERS=false` là khoá cứng ở
-adapter; chỉ đổi sau khi login, account reconcile, feed và session gate đều đạt.
-`earliest` xác minh topic/decoder bằng record đã có; dùng `--offset latest`
-để kiểm tra tick live và chấp nhận có thể không có update trong cửa sổ ngắn.
+| Việc | Lệnh |
+|---|---|
+| Xem trạng thái, health, journal | `make papertrade-status` |
+| Dừng lệnh mới ngay và dừng runner (vị thế giữ nguyên, HALT còn qua các ngày sau) | `make papertrade-stop` |
+| Bỏ HALT và chạy lại | `make papertrade-resume` |
+| Triển khai code đã commit | `make papertrade-deploy` |
+| Thử đường gửi lệnh (1 hợp đồng mua rồi bán, cần tài khoản phẳng) | `bash papertrade/ops/calibrum_smoke.sh` |
 
-Xem [docs/PLATFORM.md](docs/PLATFORM.md), [docs/API_NOTES.md](docs/API_NOTES.md)
-và [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md) trước khi viết bot.
+`push_build.sh` gửi code của commit hiện tại lên EC2 qua SSM, build `calibrum-paper:<git sha>` trên nền image PaperTrade
+đã có QuickFIX, rồi `deploy/install.sh` ghi release vào `/etc/calibrum/release.env` (giữ image trước đó để rollback) và
+cài unit. Nó không khởi động runner; timer làm việc đó.
 
-## Mở private dashboard
+Trên EC2: state ở `/var/lib/calibrum/live/` (`journal.jsonl`, `health.json`, `HALT`, log và order store SDK theo ngày).
 
-Dashboard không public Internet. Từ máy đã có AWS CLI + Session Manager plugin:
+## Test
 
-```bash
-./scripts/open_dashboard.sh
-```
-
-Script mở `http://localhost:8080` và giữ SSM tunnel cho tới khi bấm `Ctrl+C`.
-Có thể truyền port khác, ví dụ `./scripts/open_dashboard.sh 18080`.
+`make papertrade-test`: planner, feed, runner (giả lập broker) và parity giữa target live với backtest (cần cache DNSE).
