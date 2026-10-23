@@ -107,7 +107,7 @@ def main() -> int:
         plt.Line2D([], [], marker="v", linestyle="", markersize=11, color=SHORT),
         plt.Line2D([], [], marker="o", linestyle="", markersize=8, color=MUTED),
     ]
-    price.legend(handles, ["Vote goes long", "Vote goes short", "Vote goes flat"], loc="lower left",
+    price.legend(handles, ["Long", "Short", "Flat"], loc="lower left",
                  bbox_to_anchor=(0.0, 1.0), frameon=False, ncol=3, labelcolor=INK, borderaxespad=0.2)
 
     FIGURES.mkdir(parents=True, exist_ok=True)
