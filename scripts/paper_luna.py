@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Step 7: the Calendar v1 bot (the rules before the Calibrum redesign) on the PaperTrade account, 24 Aug to 23 Oct 2026.
+"""Step 7: Luna, the first paper bot (calendar rules, T+2 trend, FOMO filter), on the PaperTrade account, 24 Aug to 23 Oct 2026.
 
 Recomputes the reported paper results from the account's fills
-(research/paper-trading/calendar_fills.csv, exported from the platform's REST
+(research/paper-trading/luna_fills.csv, exported from the platform's REST
 transactions endpoint) and the DNSE minute bars of step 2. The account is
 marked at each session's close with the VN30F1M close; returns are on the 500
 million VND paper capital, Sharpe on daily returns (sqrt 250, 3% risk-free).
@@ -10,7 +10,7 @@ Holding 8 contracts uses roll-adjusted closes (the roll gap is not profit),
 from the last close before the bot's first trade and from the first session of
 the August contract, where the chart starts.
 
-Writes reports/paper/calendar.json; --chart PATH also draws the README chart.
+Writes reports/paper/luna.json; --chart PATH also draws the README chart.
 """
 from __future__ import annotations
 
@@ -28,7 +28,7 @@ if str(WORKSPACE) not in sys.path:
 
 from src.adapters.data.dnse_minute_bars import load_futures_minutes, roll_adjust_front_month  # noqa: E402
 
-FILLS = WORKSPACE / "research" / "paper-trading" / "calendar_fills.csv"
+FILLS = WORKSPACE / "research" / "paper-trading" / "luna_fills.csv"
 OUT = WORKSPACE / "reports" / "paper"
 CAPITAL = 500e6
 MULTIPLIER = 100_000  # VND per index point per contract
@@ -121,7 +121,7 @@ def draw(curve: pd.DataFrame, adjusted: pd.Series, chart_start: pd.Timestamp, ou
     ax.text(bot_start + pd.Timedelta(days=1), label_y, f"Bot starts, {START:%d %b}", color=INK, fontsize=18,
             va="top", fontweight="bold")
     for series, text, colour, weight in (
-        (bot, f"Calendar v1 bot  {bot.iloc[-1]:+.0f}M", INK, "bold"),
+        (bot, f"Luna bot  {bot.iloc[-1]:+.0f}M", INK, "bold"),
         (hold, f"Holding {HOLD} VN30F1M from {chart_start:%d %b}  {hold.iloc[-1]:+.0f}M", MUTED, "normal"),
     ):
         ax.annotate(text.replace("-", "−"), xy=(series.index[-1], series.iloc[-1]), xytext=(12, 0),
@@ -154,7 +154,7 @@ def main() -> int:
     OUT.mkdir(parents=True, exist_ok=True)
     payload = {**summary, "daily": {str(d.date()): {"position": int(p), "pnl_vnd": float(v)}
                                     for d, p, v in curve.itertuples()}}
-    (OUT / "calendar.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    (OUT / "luna.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
     for key, value in summary.items():
         print(f"{key:36s} {round(value, 4) if isinstance(value, float) else value}")
     if args.chart:

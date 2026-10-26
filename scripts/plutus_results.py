@@ -97,8 +97,8 @@ def out_of_sample(run: pv.Run) -> None:
 
 
 def paper_trading(run: pv.Run) -> None:
-    """The Calendar bot's paper account, recomputed from its fills by scripts/paper_calendar.py."""
-    report = json.loads((WORKSPACE / "reports" / "paper" / "calendar.json").read_text(encoding="utf-8"))
+    """The Luna bot's paper account, recomputed from its fills by scripts/paper_luna.py."""
+    report = json.loads((WORKSPACE / "reports" / "paper" / "luna.json").read_text(encoding="utf-8"))
     for name in ("net_profit_million_vnd", "fees_million_vnd", "sharpe_ratio",
                  "hold_from_bot_start_million_vnd", "hold_from_chart_start_million_vnd"):
         run.metric(name, float(report[name]), unit="ratio")

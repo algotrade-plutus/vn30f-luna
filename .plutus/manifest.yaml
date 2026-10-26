@@ -58,8 +58,8 @@ steps:
     nine_step: step_7_paper_trading
     required: true
     timeout_seconds: 600
-    command: "python scripts/paper_calendar.py && python scripts/plutus_results.py paper_trading"
-    outputs: ["reports/paper/calendar.json"]
+    command: "python scripts/paper_luna.py && python scripts/plutus_results.py paper_trading"
+    outputs: ["reports/paper/luna.json"]
     depends_on: [data_preparation]
 
 expected:
@@ -164,7 +164,7 @@ expected:
       - {name: round_trips_won, value: 12.0, tolerance: {kind: exact, value: 0}}
       - {name: final_position, value: 0.0, tolerance: {kind: exact, value: 0}}
     artifacts:
-      - {path: reports/paper/calendar.json, compare: json_numeric_tolerance}
+      - {path: reports/paper/luna.json, compare: json_numeric_tolerance}
 
 nine_step_coverage:
   step_1_hypothesis: {present: true, section: "1. Forming hypotheses"}

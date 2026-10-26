@@ -29,9 +29,9 @@ step6:
 	$(RUN) oos1
 	$(RUN) oos2
 
-# Step 7: the Calendar bot's paper account, recomputed from its fills; redraws the README chart.
+# Step 7: the Luna bot's paper account, recomputed from its fills; redraws the README chart.
 paper:
-	$(UV) run python scripts/paper_calendar.py --chart image/README/paper_calendar.png
+	$(UV) run python scripts/paper_luna.py --chart image/README/paper_luna.png
 
 benchmarks:
 	$(RUN) benchmarks

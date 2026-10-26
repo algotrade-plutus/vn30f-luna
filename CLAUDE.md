@@ -15,7 +15,7 @@ make setup                 # uv sync --frozen
 make fetch-data            # DNSE 1-minute and 5-minute VN30F1M and VN30 bars into data/dnse/
 make step5 && make step4   # in-sample: Ridge CV, Momentum threshold, Basis grid; then the 7-combination baseline
 make step6                 # valid chooses the final combination, then OOS 1 and OOS 2 (each opens once)
-make paper                 # step 7: Calendar paper results recomputed from research/paper-trading/calendar_fills.csv
+make paper                 # step 7: Luna paper results recomputed from research/paper-trading/luna_fills.csv
 make figures               # buy-and-hold benchmarks and the equity charts
 make week START=2026-08-10 END=2026-08-14   # one-week chart of sleeve and vote positions
 make test                  # ./scripts/run_owned_tests.sh  (uv run --python 3.12 pytest tests -q)

@@ -288,25 +288,28 @@ The full record, including every amendment made after a result was seen, is in [
 
 ## 7. Paper trading
 
-Paper trading on the exchange’s paper platform began on 24 Aug 2026 with a first Calendar bot, Calendar v1, which had its own rules and code; Calibrum C+B+M replaced it on 23 Oct 2026. From 22 Oct the data is blind.
+Paper trading on the exchange’s paper platform began on 24 Aug 2026 with a first bot, Luna, which had its own rules and code; Calibrum C+B+M replaced it on 23 Oct 2026. From 22 Oct the data is blind.
 
-**Calendar v1 rules.** Each session at 14:24 the bot set the position for the next session: long if that session was (1) a Tuesday or Wednesday, (2) one of the first two weekdays of the month, (3) the last session before a holiday, or (4) the expiry Thursday, held to 14:24 of that session. (5) On Monday at 09:16 it went short if the market opened at or below the reference price, held to 14:24 (skipped in the first three weekdays of the month and before a holiday). 8 contracts (7 on the first trade) on 500 million VND of paper capital; the expiring contract closed on expiry day. Calibrum’s Calendar sleeve (step 3) keeps only the Monday short and the mid-week long.
+**Luna’s rules** (8 contracts, 7 on the first trade, on 500 million VND of paper capital):
 
-**Calendar v1 on paper, 24 Aug – 23 Oct 2026:**
+- *Calendar.* Long on Tuesdays and Wednesdays, the first two weekdays of the month, the last session before a holiday and the expiry Thursday, decided at 14:24 the session before; short on Monday morning (09:16) when the market opens at or below the reference price; a few exceptions around expiry.
+- *T+2 trend.* When the calendar has no view, follow the trend on 30-minute bars: long when the 2-day return is above +0.8% and the price above its average, short when it is below −1% in a falling market; exit when the 2-day return turns.
+- *FOMO filter.* No long right after a sharp rise (more than about 1% in the last one to two and a half hours).
+
+**Luna on paper, 24 Aug – 23 Oct 2026:**
 
 | Net profit | Return | Sharpe | Max drawdown | Round trips won | Fees |
 |---:|---:|---:|---:|---:|---:|
 | +54.7 M VND | +10.9% | ≈ 2.2 | ≈ −11% | 12 of 23 | 7.3 M VND |
 
-![Calendar v1 bot on the paper account against holding 8 VN30F1M from the start of the August contract (17 Jul) to 23 Oct 2026](image/README/paper_calendar.png)
+![Luna on the paper account against holding 8 VN30F1M from the start of the August contract (17 Jul) to 23 Oct 2026](image/README/paper_luna.png)
 
-The platform’s own holding-period chart shows +10.89% for the account against +5.57% for VN30 and +6.30% for VNINDEX over 27 Jul – 25 Oct. Holding 8 futures contracts from the day the bot started (rolled at each expiry) lost 38 million VND; from 17 Jul, the first session of the August contract where the chart starts, it lost 29 million. Profit is from the account’s trades after fees; Sharpe and drawdown are estimates from an equity curve marked at each session’s close with DNSE prices (the platform’s NAV history API returns nothing). The live trades cannot be rerun, but the numbers can be recomputed: the account’s 47 fills, exported from the platform’s REST transactions endpoint, are in [`research/paper-trading/calendar_fills.csv`](research/paper-trading/calendar_fills.csv), and `make paper` (`scripts/paper_calendar.py`) rebuilds every figure above and the chart from them; marked to market, the account ends exactly at the platform’s realized profit after fees.
+The platform’s own holding-period chart shows +10.89% for the account against +5.57% for VN30 and +6.30% for VNINDEX over 27 Jul – 25 Oct. Holding 8 futures contracts from the day the bot started (rolled at each expiry) lost 38 million VND; from 17 Jul, the first session of the August contract where the chart starts, it lost 29 million. Profit is from the account’s trades after fees (20,000 VND per contract per side, the platform’s fee); Sharpe and drawdown are estimates from an equity curve marked at each session’s close with DNSE prices (the platform’s NAV history API returns nothing). The live trades cannot be rerun, but the numbers can be recomputed: the account’s 47 fills, exported from the platform’s REST transactions endpoint, are in [`research/paper-trading/luna_fills.csv`](research/paper-trading/luna_fills.csv), and `make paper` (`scripts/paper_luna.py`) rebuilds every figure above and the chart from them; marked to market, the account ends exactly at the platform’s realized profit after fees.
 
-**Why v1 was replaced although it made money.**
+**Why Luna was replaced although it made money.**
 
-1. *Too many rules from the past.* Each of the five rules was found by looking at past calendar seasons; the more such rules, the more likely some are luck. Calibrum’s Calendar keeps two, each with a stated reason: weak Mondays, strong mid-week.
-2. *One source of alpha.* All the risk rode on one calendar effect. Calibrum adds Basis and Momentum, whose daily net P&L correlates −0.09 and 0.15 with Calendar’s in-sample.
-3. *Live code was not the research code.* Files were patched by hand on the server, so no one could say which code ran; a misnamed parameter silently did nothing; the holiday table on the server differed from the research one; late fill reports could have doubled an order. The 23 defects and their fixes are in [`papertrade/docs/REBUILD_NOTES.md`](papertrade/docs/REBUILD_NOTES.md). Calibrum’s runtime calls the backtest’s own code.
+1. *Rules that fire too rarely.* Over 2020–2026 the pre-holiday rule fires about 5 times a year, the expiry Thursday 12 and the start of the month 19; in the two months on paper they fired 1, 2 and 2 times. That is too few to tell an edge from luck. Calibrum’s Calendar keeps the weekly rules: Monday and Tuesday–Wednesday.
+2. *The paper code was not good enough.* My first runtime had bugs in sending and tracking orders, and it had to be watched and fixed by hand ([`papertrade/docs/REBUILD_NOTES.md`](papertrade/docs/REBUILD_NOTES.md) lists them). Calibrum’s runtime was rewritten to call the backtest’s own code.
 
 **Calibrum live, from 23 Oct 2026** (10 contracts, AWS EC2, [`papertrade/`](papertrade/README.md)):
 
@@ -342,7 +345,7 @@ make fetch-data            # DNSE 1-minute and 5-minute bars into data/dnse/
 make step5                 # Ridge λ by cross-validation, Momentum threshold, Basis grid (in-sample only)
 make step4                 # seven combinations with the starting parameters
 make step6                 # valid, then OOS 1 and OOS 2 (each opens once)
-make paper                 # step 7: Calendar paper results and chart from the account's fills
+make paper                 # step 7: Luna's paper results and chart from the account's fills
 make figures               # benchmarks and equity charts → reports/calibrum_1m/figures/
 make week START=2026-08-10 END=2026-08-14
 make check                 # tests, lint, compile
@@ -350,7 +353,7 @@ make check                 # tests, lint, compile
 
 ### Verify with plutus-verify
 
-[`.plutus/manifest.yaml`](.plutus/manifest.yaml) declares the pipeline for [plutus-verify](https://github.com/algotrade-plutus/plutus-verify) (0.5.1, needs Docker). `plutus check .` builds the locked environment, downloads the DNSE bars to 23 Oct 2026 inside the container, runs steps 2, 5, 4, 6 and 7 (the paper results recomputed from the fills), and compares the metrics each step writes (`scripts/plutus_results.py`) with the blessed values: exit 0 means every number reproduced.
+[`.plutus/manifest.yaml`](.plutus/manifest.yaml) declares the pipeline for [plutus-verify](https://github.com/algotrade-plutus/plutus-verify) (0.5.1, needs Docker). `plutus check .` builds the locked environment, downloads the DNSE bars to 23 Oct 2026 inside the container, runs steps 2, 5, 4, 6 and 7 (Luna’s paper results recomputed from its fills), and compares the metrics each step writes (`scripts/plutus_results.py`) with the blessed values: exit 0 means every number reproduced.
 
 ```bash
 uv tool install "plutus-verify[runner] @ https://github.com/algotrade-plutus/plutus-verify/releases/download/v0.5.1/plutus_verify-0.5.1-py3-none-any.whl"
@@ -366,6 +369,6 @@ plutus check .             # about 15 minutes the first time (image build and da
 | `src/lab/backtest/` | Position-stream accounting and metrics |
 | `scripts/run_calibrum_1m.py` | One protocol step per stage |
 | `research/calibrum-1m/` | Protocol (locked before the runs) and results |
-| `research/paper-trading/`, `scripts/paper_calendar.py` | Calendar v1 paper fills and the step 7 numbers |
+| `research/paper-trading/`, `scripts/paper_luna.py` | Luna’s paper fills and the step 7 numbers |
 | `papertrade/` | Step 7 paper runtime |
 | `.plutus/manifest.yaml`, `scripts/plutus_results.py` | plutus-verify pipeline and the metrics each step reports |
