@@ -298,7 +298,7 @@ Paper trading on the exchange’s paper platform began on 25 Aug 2026 with the C
 
 ![Calendar bot on the paper account against holding 8 VN30F1M from the start of the August contract (17 Jul) to 23 Oct 2026](image/README/paper_calendar.png)
 
-The platform’s own holding-period chart shows +10.89% for the account against +5.57% for VN30 and +6.30% for VNINDEX over 27 Jul – 25 Oct. Holding 8 futures contracts from the day the bot started (rolled at each expiry) lost 38 million VND; from 17 Jul, the first session of the August contract where the chart starts, it lost 29 million. Profit is from the account’s trades after fees; Sharpe and drawdown are estimates from an equity curve marked at each session’s close with DNSE prices (the platform’s NAV history API returns nothing).
+The platform’s own holding-period chart shows +10.89% for the account against +5.57% for VN30 and +6.30% for VNINDEX over 27 Jul – 25 Oct. Holding 8 futures contracts from the day the bot started (rolled at each expiry) lost 38 million VND; from 17 Jul, the first session of the August contract where the chart starts, it lost 29 million. Profit is from the account’s trades after fees; Sharpe and drawdown are estimates from an equity curve marked at each session’s close with DNSE prices (the platform’s NAV history API returns nothing). The live trades cannot be rerun, but the numbers can be recomputed: the account’s 47 fills, exported from the platform’s REST transactions endpoint, are in [`research/paper-trading/calendar_fills.csv`](research/paper-trading/calendar_fills.csv), and `make paper` (`scripts/paper_calendar.py`) rebuilds every figure above and the chart from them; marked to market, the account ends exactly at the platform’s realized profit after fees.
 
 **Calibrum live, from 23 Oct 2026** (10 contracts, AWS EC2, [`papertrade/`](papertrade/README.md)):
 
@@ -321,6 +321,7 @@ make fetch-data            # DNSE 1-minute and 5-minute bars into data/dnse/
 make step5                 # Ridge λ by cross-validation, Momentum threshold, Basis grid (in-sample only)
 make step4                 # seven combinations with the starting parameters
 make step6                 # valid, then OOS 1 and OOS 2 (each opens once)
+make paper                 # step 7: Calendar paper results and chart from the account's fills
 make figures               # benchmarks and equity charts → reports/calibrum_1m/figures/
 make week START=2026-08-10 END=2026-08-14
 make check                 # tests, lint, compile
@@ -328,7 +329,7 @@ make check                 # tests, lint, compile
 
 ### Verify with plutus-verify
 
-[`.plutus/manifest.yaml`](.plutus/manifest.yaml) declares the pipeline for [plutus-verify](https://github.com/algotrade-plutus/plutus-verify) (0.5.1, needs Docker). `plutus check .` builds the locked environment, downloads the DNSE bars to 21 Oct 2026 inside the container, runs steps 2, 5, 4 and 6, and compares the metrics each step writes (`scripts/plutus_results.py`) with the blessed values: exit 0 means every number reproduced.
+[`.plutus/manifest.yaml`](.plutus/manifest.yaml) declares the pipeline for [plutus-verify](https://github.com/algotrade-plutus/plutus-verify) (0.5.1, needs Docker). `plutus check .` builds the locked environment, downloads the DNSE bars to 23 Oct 2026 inside the container, runs steps 2, 5, 4, 6 and 7 (the paper results recomputed from the fills), and compares the metrics each step writes (`scripts/plutus_results.py`) with the blessed values: exit 0 means every number reproduced.
 
 ```bash
 uv tool install "plutus-verify[runner] @ https://github.com/algotrade-plutus/plutus-verify/releases/download/v0.5.1/plutus_verify-0.5.1-py3-none-any.whl"
@@ -344,5 +345,6 @@ plutus check .             # about 15 minutes the first time (image build and da
 | `src/lab/backtest/` | Position-stream accounting and metrics |
 | `scripts/run_calibrum_1m.py` | One protocol step per stage |
 | `research/calibrum-1m/` | Protocol (locked before the runs) and results |
+| `research/paper-trading/`, `scripts/paper_calendar.py` | Calendar bot's paper fills and the step 7 numbers |
 | `papertrade/` | Step 7 paper runtime |
 | `.plutus/manifest.yaml`, `scripts/plutus_results.py` | plutus-verify pipeline and the metrics each step reports |

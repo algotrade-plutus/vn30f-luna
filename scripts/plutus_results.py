@@ -4,7 +4,7 @@
 metrics with the blessed values. The numbers are read from the reports the stages already
 saved in `reports/calibrum_1m/`, so the stage code does not depend on plutus-verify.
 
-    python scripts/plutus_results.py data_preparation | optimization | in_sample | out_of_sample
+    python scripts/plutus_results.py data_preparation | optimization | in_sample | out_of_sample | paper_trading
 """
 from __future__ import annotations
 
@@ -96,11 +96,25 @@ def out_of_sample(run: pv.Run) -> None:
         _scores(run, row, period, full=True)
 
 
+def paper_trading(run: pv.Run) -> None:
+    """The Calendar bot's paper account, recomputed from its fills by scripts/paper_calendar.py."""
+    report = json.loads((WORKSPACE / "reports" / "paper" / "calendar.json").read_text(encoding="utf-8"))
+    for name in ("net_profit_million_vnd", "fees_million_vnd", "sharpe_ratio",
+                 "hold_from_bot_start_million_vnd", "hold_from_chart_start_million_vnd"):
+        run.metric(name, float(report[name]), unit="ratio")
+    for name in ("net_return", "max_drawdown"):
+        run.metric(name, float(report[name]), unit="fraction")
+    for name in ("fills", "round_trips", "round_trips_won", "final_position"):
+        run.metric(name, float(report[name]), unit="count")
+    run.metadata(first_fill=report["first_fill"], last_fill=report["last_fill"], chart_start=report["chart_start"])
+
+
 STEPS = {
     "data_preparation": data_preparation,
     "optimization": optimization,
     "in_sample": in_sample,
     "out_of_sample": out_of_sample,
+    "paper_trading": paper_trading,
 }
 
 

@@ -28,10 +28,10 @@ steps:
     required: true
     network: bridge
     timeout_seconds: 1800
-    command: "python scripts/fetch_dnse_candles.py --start 2018-08-01 --end 2026-10-21 --resolution 1 && python scripts/fetch_dnse_candles.py --start 2018-08-01 --end 2026-10-21 --resolution 5 && python scripts/plutus_results.py data_preparation"
+    command: "python scripts/fetch_dnse_candles.py --start 2018-08-01 --end 2026-10-23 --resolution 1 && python scripts/fetch_dnse_candles.py --start 2018-08-01 --end 2026-10-23 --resolution 5 && python scripts/plutus_results.py data_preparation"
     outputs: ["data/dnse/*_1m.parquet", "data/dnse/*_5m.parquet"]
     sub_processes:
-      collection: {description: "VN30F1M and VN30 1-minute and 5-minute bars from the public DNSE chart API, 1 Aug 2018 to 2026-10-21"}
+      collection: {description: "VN30F1M and VN30 1-minute and 5-minute bars from the public DNSE chart API, 1 Aug 2018 to 2026-10-23 (research stages stop at 21 Oct, the end of OOS 2; step 7 marks the paper account to 23 Oct)"}
       processing: {description: "front-month contract code, 5-minute bars fill sessions DNSE lacks at 1 minute, 10- and 30-minute aggregation in src/adapters/data/dnse_minute_bars.py (done when each stage loads the data)"}
   - id: optimization
     nine_step: step_5_optimization
@@ -54,6 +54,13 @@ steps:
     command: "python scripts/run_calibrum_1m.py valid && python scripts/run_calibrum_1m.py oos1 && python scripts/run_calibrum_1m.py oos2 && python scripts/plutus_results.py out_of_sample"
     outputs: ["reports/calibrum_1m/valid.json", "reports/calibrum_1m/oos1.json", "reports/calibrum_1m/oos2.json"]
     depends_on: [optimization]
+  - id: paper_trading
+    nine_step: step_7_paper_trading
+    required: true
+    timeout_seconds: 600
+    command: "python scripts/paper_calendar.py && python scripts/plutus_results.py paper_trading"
+    outputs: ["reports/paper/calendar.json"]
+    depends_on: [data_preparation]
 
 expected:
   - step_id: data_preparation
@@ -143,6 +150,21 @@ expected:
       - {path: reports/calibrum_1m/valid.json, compare: json_numeric_tolerance}
       - {path: reports/calibrum_1m/oos1.json, compare: json_numeric_tolerance}
       - {path: reports/calibrum_1m/oos2.json, compare: json_numeric_tolerance}
+  - step_id: paper_trading
+    metrics:
+      - {name: net_profit_million_vnd, value: 54.71, tolerance: {kind: relative, value: 0.01}}
+      - {name: fees_million_vnd, value: 7.32, tolerance: {kind: exact, value: 0}}
+      - {name: sharpe_ratio, value: 2.1523422513064348, tolerance: {kind: relative, value: 0.01}}
+      - {name: hold_from_bot_start_million_vnd, value: -37.520000000000074, tolerance: {kind: relative, value: 0.01}}
+      - {name: hold_from_chart_start_million_vnd, value: -28.88000000000011, tolerance: {kind: relative, value: 0.01}}
+      - {name: net_return, value: 0.10942, tolerance: {kind: relative, value: 0.01}}
+      - {name: max_drawdown, value: 0.11148095131331592, tolerance: {kind: relative, value: 0.01}}
+      - {name: fills, value: 47.0, tolerance: {kind: exact, value: 0}}
+      - {name: round_trips, value: 23.0, tolerance: {kind: exact, value: 0}}
+      - {name: round_trips_won, value: 12.0, tolerance: {kind: exact, value: 0}}
+      - {name: final_position, value: 0.0, tolerance: {kind: exact, value: 0}}
+    artifacts:
+      - {path: reports/paper/calendar.json, compare: json_numeric_tolerance}
 
 nine_step_coverage:
   step_1_hypothesis: {present: true, section: "1. Forming hypotheses"}

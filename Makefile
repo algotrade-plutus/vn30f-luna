@@ -3,7 +3,7 @@ RUN = $(UV) run python scripts/run_calibrum_1m.py
 START ?= 2026-08-10
 END ?= 2026-08-14
 
-.PHONY: setup fetch-data step5 step4 step6 benchmarks figures week test lint check
+.PHONY: setup fetch-data step5 step4 step6 paper benchmarks figures week test lint check
 
 setup:
 	$(UV) sync --frozen
@@ -28,6 +28,10 @@ step6:
 	$(RUN) valid
 	$(RUN) oos1
 	$(RUN) oos2
+
+# Step 7: the Calendar bot's paper account, recomputed from its fills; redraws the README chart.
+paper:
+	$(UV) run python scripts/paper_calendar.py --chart image/README/paper_calendar.png
 
 benchmarks:
 	$(RUN) benchmarks
