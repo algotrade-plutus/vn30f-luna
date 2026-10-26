@@ -3,9 +3,12 @@
 
 - in_sample_equity_*.png (step 4): in-sample with the starting parameters,
   from reports/calibrum_1m/in_sample_baseline.json.
-- full_equity_*.png (step 6): in-sample to OOS 2 with the step-5 parameters,
+- full_equity_*.png: in-sample to OOS 2 with the step-5 parameters,
   from reports/calibrum_1m/oos2.json, with the periods marked and the
   out-of-sample years shaded.
+- period_equity_<period>.png (steps 5 and 6): one period at a time with the
+  step-5 parameters, each sleeve and all three, every curve starting at zero
+  at the period's first session.
 
 Each figure is split into two wide images, written at twice their slide size:
 the sleeves alone (``*_sleeves.png``), then the pairs and all three (``*_combos.png``). Colours are the dataviz
@@ -142,12 +145,71 @@ def draw(source: Path, out_stem: Path, size_px: tuple[int, int], mark_periods: b
     return written
 
 
+PERIOD_LINES = {"C": "#2a78d6", "B": "#eb6834", "M": "#1baf7a", "C+B+M": "#6250d6"}
+
+
+def draw_period(source: Path, start: str, end: str, out: Path, size_px: tuple[int, int] = (1664, 640)) -> Path:
+    """Cumulative profit inside one period: each sleeve, all three, and buy and hold, all from zero."""
+    payload = json.loads(source.read_text(encoding="utf-8"))["daily_net_points"]
+    first, last = pd.Timestamp(start), pd.Timestamp(end)
+    curves = {}
+    for name in PERIOD_LINES:
+        daily = pd.Series(payload[name]).rename(index=pd.Timestamp).sort_index()
+        curves[name] = daily[(daily.index >= first) & (daily.index <= last)].cumsum() * MILLION_VND_PER_POINT
+    first, last = min(c.index[0] for c in curves.values()), max(c.index[-1] for c in curves.values())
+    references = _benchmarks(first, last)
+    shown = {**curves, **references}
+    top = max(0.0, max(series.max() for series in shown.values()))
+    bottom = min(0.0, min(series.min() for series in shown.values()))
+    span = top - bottom
+
+    plt.rcParams.update({"font.family": "Arial", "font.size": 17, "axes.edgecolor": GRID})
+    fig, ax = plt.subplots(figsize=(2 * size_px[0] / DPI, 2 * size_px[1] / DPI))
+    fig.patch.set_facecolor(SURFACE)
+    ax.set_facecolor(SURFACE)
+    for name, colour in PERIOD_LINES.items():
+        ax.plot(curves[name].index, curves[name].to_numpy(), color=colour,
+                linewidth=3.4 if name == "C+B+M" else 2.4, solid_capstyle="round")
+    for name, (colour, dash) in BENCHMARKS.items():
+        if name in references:
+            ax.plot(references[name].index, references[name].to_numpy(), color=colour, linewidth=1.8, linestyle=dash)
+    ends = {name: series.iloc[-1] for name, series in shown.items()}
+    for name, y in _label_positions(ends, gap=0.065 * span).items():
+        ax.annotate(f"{NAMES.get(name, name)}  {ends[name]:+.0f}M", xy=(shown[name].index[-1], y), xytext=(10, 0),
+                    textcoords="offset points", va="center", annotation_clip=False,
+                    color=MUTED if name in BENCHMARKS else INK, fontweight="bold" if name == "C+B+M" else "normal")
+    ax.axhline(0, color=MUTED, linewidth=1)
+    ax.grid(axis="y", color=GRID, linewidth=1)
+    ax.set_ylim(bottom - 0.04 * span, top + 0.06 * span)
+    if (last - first).days > 400:
+        ticks, fmt = [pd.Timestamp(year=y, month=1, day=1) for y in range(first.year + 1, last.year + 1)], "%Y"
+    else:
+        ticks = [d for d in pd.date_range(first.normalize().replace(day=1), last, freq="MS") if d.month in (1, 4, 7, 10)]
+        fmt = "%b %Y"
+    ax.set_xticks(ticks)
+    ax.xaxis.set_major_formatter(mdates.DateFormatter(fmt))
+    ax.tick_params(colors=MUTED, length=0)
+    for side in ("top", "right", "left"):
+        ax.spines[side].set_visible(False)
+    ax.set_xlim(first, last + (last - first) * 0.2)
+    ax.set_ylabel("Cumulative net profit, million VND", color=MUTED)
+    ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda value, _: f"{value:.0f}".replace("-", "\u2212")))
+    fig.tight_layout()
+    out.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(out, dpi=DPI, facecolor=SURFACE)
+    plt.close(fig)
+    return out
+
+
 def main() -> int:
     for path in draw(REPORTS / "in_sample_baseline.json", FIGURES / "in_sample_equity", (1664, 640), mark_periods=False):
         print(path)
     if (REPORTS / "oos2.json").exists():
         for path in draw(REPORTS / "oos2.json", FIGURES / "full_equity", (1664, 640), mark_periods=True):
             print(path)
+        for name, (start, end) in {"in_sample": ("2020-06-01", "2022-12-31"), "valid": ("2023-01-01", "2024-12-31"),
+                                   "oos1": ("2025-01-01", "2025-12-31"), "oos2": ("2026-01-01", "2026-12-31")}.items():
+            print(draw_period(REPORTS / "oos2.json", start, end, FIGURES / f"period_equity_{name}.png"))
     return 0
 
 
