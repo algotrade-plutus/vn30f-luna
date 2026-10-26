@@ -302,6 +302,19 @@ The platform’s own holding-period chart shows +10.89% for the account against 
 
 **Calibrum live, from 23 Oct 2026** (10 contracts, AWS EC2, [`papertrade/`](papertrade/README.md)):
 
+```mermaid
+flowchart LR
+    subgraph EC2["AWS EC2 · systemd · 08:30–15:00 every trading day · restarts itself"]
+        A["1 · Read<br/>DNSE 1-minute bars<br/>VN30F1M and VN30, the research source"] --> B["2 · Decide<br/>the backtest's code<br/>Calendar, Basis, Momentum, vote<br/>step 5 parameters frozen"]
+        B --> C["3 · Order<br/>vote × 10 against the broker's position<br/>one order at a time, every decision logged"]
+    end
+    C -- "order (FIX)" --> D["4 · Fill<br/>PaperTrade"]
+    D -. "position and cash (REST)" .-> C
+    K["Kafka bid and ask"] -. "prices the order, never a signal" .-> C
+```
+
+Every minute, about 4 seconds after it closes, the runtime reads the new bars, recomputes the vote and sends at most one order.
+
 - **Same code, same data.** Each minute the runtime reads DNSE 1-minute bars and runs the backtest’s own sleeve code (`src/lab/calibrum_1m/live.py`) with the frozen step-5 parameters. The bars it reads matched the research data on all 10,945 minutes compared, and its target equals the backtest position at 399 of 400 random minutes 2021–2026 (the miss is a day with no VN30 data).
 - **One deliberate change.** The bars that end the continuous session close at 14:28, so orders fill before the closing auction (backtest of that variant: 407 instead of 425 million VND, OOS Sharpe 3.29 and 2.86).
 - **Orders.** One LIMIT order at a time, 0.3 points through the book; position and cash always read from the broker; open min(10, buying power); below the margin held, sell just enough contracts; no order while data are late or the broker link is down.
