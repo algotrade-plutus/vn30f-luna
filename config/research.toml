@@ -28,8 +28,9 @@ warmup_start = "2018-08-13"
 in_sample = { start = "2020-06-01", end = "2022-12-31" }
 valid = { start = "2023-01-01", end = "2024-12-31" }
 oos1 = { start = "2025-01-01", end = "2025-12-31" }
-# Open-ended: runs to the last available bar.
-oos2 = { start = "2026-01-01" }
+# Ends on the last session before the data went blind (22 Oct 2026, paper trading), so a later
+# download reproduces the reported numbers.
+oos2 = { start = "2026-01-01", end = "2026-10-21" }
 
 [execution]
 # Fill at the close of the bar that produced the signal.

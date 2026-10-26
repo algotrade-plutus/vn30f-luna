@@ -419,7 +419,7 @@ def benchmarks(config: dict) -> None:
     """
     windows = pipeline.periods(config)
     start = windows["in_sample"][0]
-    market = pipeline.load_market(pd.Timestamp("2100-01-01").date())
+    market = pipeline.load_market(windows["oos2"][1].date())
     cost = config["costs"]["points_per_contract_per_side"]
 
     daily_futures = pipeline.buy_and_hold_points(market, cost, start)
