@@ -6,9 +6,11 @@
 - full_equity_*.png: in-sample to OOS 2 with the step-5 parameters,
   from reports/calibrum_1m/oos2.json, with the periods marked and the
   out-of-sample years shaded.
-- period_equity_<period>.png (steps 5 and 6): one period at a time with the
-  step-5 parameters, each sleeve and all three, every curve starting at zero
-  at the period's first session.
+- period_equity_<period>_*.png (steps 5 and 6): one period at a time with the
+  step-5 parameters, the same two panels, every curve starting at zero at the
+  period's first session.
+- correlation_*.png: daily-profit correlation of the sleeves as heatmaps
+  (in-sample with the starting values; each period with the step-5 ones).
 
 Each figure is split into two wide images, written at twice their slide size:
 the sleeves alone (``*_sleeves.png``), then the pairs and all three (``*_combos.png``). Colours are the dataviz
@@ -145,55 +147,98 @@ def draw(source: Path, out_stem: Path, size_px: tuple[int, int], mark_periods: b
     return written
 
 
-PERIOD_LINES = {"C": "#2a78d6", "B": "#eb6834", "M": "#1baf7a", "C+B+M": "#6250d6"}
-
-
-def draw_period(source: Path, start: str, end: str, out: Path, size_px: tuple[int, int] = (1664, 640)) -> Path:
-    """Cumulative profit inside one period: each sleeve, all three, and buy and hold, all from zero."""
+def draw_period(source: Path, start: str, end: str, out_stem: Path, size_px: tuple[int, int] = (1664, 640)) -> list[Path]:
+    """Cumulative profit inside one period, every line from zero: ``<stem>_sleeves.png`` and ``<stem>_combos.png``."""
     payload = json.loads(source.read_text(encoding="utf-8"))["daily_net_points"]
-    first, last = pd.Timestamp(start), pd.Timestamp(end)
+    lo, hi = pd.Timestamp(start), pd.Timestamp(end)
     curves = {}
-    for name in PERIOD_LINES:
+    for name in payload:
         daily = pd.Series(payload[name]).rename(index=pd.Timestamp).sort_index()
-        curves[name] = daily[(daily.index >= first) & (daily.index <= last)].cumsum() * MILLION_VND_PER_POINT
+        curves[name] = daily[(daily.index >= lo) & (daily.index <= hi)].cumsum() * MILLION_VND_PER_POINT
     first, last = min(c.index[0] for c in curves.values()), max(c.index[-1] for c in curves.values())
     references = _benchmarks(first, last)
-    shown = {**curves, **references}
-    top = max(0.0, max(series.max() for series in shown.values()))
-    bottom = min(0.0, min(series.min() for series in shown.values()))
-    span = top - bottom
-
+    written = []
     plt.rcParams.update({"font.family": "Arial", "font.size": 17, "axes.edgecolor": GRID})
-    fig, ax = plt.subplots(figsize=(2 * size_px[0] / DPI, 2 * size_px[1] / DPI))
+    for (_, colours), suffix in zip(PANELS, ("sleeves", "combos")):
+        shown = {**{name: curves[name] for name in colours}, **references}
+        top = max(0.0, max(series.max() for series in shown.values()))
+        bottom = min(0.0, min(series.min() for series in shown.values()))
+        span = top - bottom
+        fig, ax = plt.subplots(figsize=(2 * size_px[0] / DPI, 2 * size_px[1] / DPI))
+        fig.patch.set_facecolor(SURFACE)
+        ax.set_facecolor(SURFACE)
+        for name, colour in colours.items():
+            ax.plot(curves[name].index, curves[name].to_numpy(), color=colour,
+                    linewidth=3.4 if name == "C+B+M" else 2.4, solid_capstyle="round")
+        for name, (colour, dash) in BENCHMARKS.items():
+            if name in references:
+                ax.plot(references[name].index, references[name].to_numpy(), color=colour, linewidth=1.8, linestyle=dash)
+        ends = {name: series.iloc[-1] for name, series in shown.items()}
+        for name, y in _label_positions(ends, gap=0.065 * span).items():
+            ax.annotate(f"{NAMES.get(name, name)}  {ends[name]:+.0f}M", xy=(shown[name].index[-1], y), xytext=(10, 0),
+                        textcoords="offset points", va="center", annotation_clip=False,
+                        color=MUTED if name in BENCHMARKS else INK, fontweight="bold" if name == "C+B+M" else "normal")
+        ax.axhline(0, color=MUTED, linewidth=1)
+        ax.grid(axis="y", color=GRID, linewidth=1)
+        ax.set_ylim(bottom - 0.04 * span, top + 0.06 * span)
+        if (last - first).days > 400:
+            ticks, fmt = [pd.Timestamp(year=y, month=1, day=1) for y in range(first.year + 1, last.year + 1)], "%Y"
+        else:
+            ticks = [d for d in pd.date_range(first.normalize().replace(day=1), last, freq="MS") if d.month in (4, 7, 10)]
+            fmt = "%b %Y"
+        ax.set_xticks(ticks)
+        ax.xaxis.set_major_formatter(mdates.DateFormatter(fmt))
+        ax.tick_params(colors=MUTED, length=0)
+        for side in ("top", "right", "left"):
+            ax.spines[side].set_visible(False)
+        ax.set_xlim(first, last + (last - first) * 0.2)
+        ax.set_ylabel("Cumulative net profit, million VND", color=MUTED)
+        ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda value, _: f"{value:.0f}".replace("-", "\u2212")))
+        fig.tight_layout()
+        out = out_stem.with_name(f"{out_stem.name}_{suffix}.png")
+        out.parent.mkdir(parents=True, exist_ok=True)
+        fig.savefig(out, dpi=DPI, facecolor=SURFACE)
+        plt.close(fig)
+        written.append(out)
+    return written
+
+
+def draw_correlation(matrices: dict[str, dict], out: Path, size_px: tuple[int, int]) -> Path:
+    """Daily-profit correlation of the three sleeves as heatmaps, one per title, on a fixed -1..+1 scale.
+
+    Diverging blue (negative) to orange (positive) through a neutral grey at zero;
+    the diagonal is left grey, and every cell carries its value.
+    """
+    from matplotlib.colors import LinearSegmentedColormap
+
+    cmap = LinearSegmentedColormap.from_list("diverging", ["#2a78d6", "#E6E2D6", "#eb6834"])
+    names = ["C", "B", "M"]
+    labels = [NAMES[n] for n in names]
+    plt.rcParams.update({"font.family": "Arial", "font.size": 18})
+    fig, axes = plt.subplots(1, len(matrices), figsize=(2 * size_px[0] / DPI, 2 * size_px[1] / DPI))
+    axes = [axes] if len(matrices) == 1 else list(axes)
     fig.patch.set_facecolor(SURFACE)
-    ax.set_facecolor(SURFACE)
-    for name, colour in PERIOD_LINES.items():
-        ax.plot(curves[name].index, curves[name].to_numpy(), color=colour,
-                linewidth=3.4 if name == "C+B+M" else 2.4, solid_capstyle="round")
-    for name, (colour, dash) in BENCHMARKS.items():
-        if name in references:
-            ax.plot(references[name].index, references[name].to_numpy(), color=colour, linewidth=1.8, linestyle=dash)
-    ends = {name: series.iloc[-1] for name, series in shown.items()}
-    for name, y in _label_positions(ends, gap=0.065 * span).items():
-        ax.annotate(f"{NAMES.get(name, name)}  {ends[name]:+.0f}M", xy=(shown[name].index[-1], y), xytext=(10, 0),
-                    textcoords="offset points", va="center", annotation_clip=False,
-                    color=MUTED if name in BENCHMARKS else INK, fontweight="bold" if name == "C+B+M" else "normal")
-    ax.axhline(0, color=MUTED, linewidth=1)
-    ax.grid(axis="y", color=GRID, linewidth=1)
-    ax.set_ylim(bottom - 0.04 * span, top + 0.06 * span)
-    if (last - first).days > 400:
-        ticks, fmt = [pd.Timestamp(year=y, month=1, day=1) for y in range(first.year + 1, last.year + 1)], "%Y"
-    else:
-        ticks = [d for d in pd.date_range(first.normalize().replace(day=1), last, freq="MS") if d.month in (1, 4, 7, 10)]
-        fmt = "%b %Y"
-    ax.set_xticks(ticks)
-    ax.xaxis.set_major_formatter(mdates.DateFormatter(fmt))
-    ax.tick_params(colors=MUTED, length=0)
-    for side in ("top", "right", "left"):
-        ax.spines[side].set_visible(False)
-    ax.set_xlim(first, last + (last - first) * 0.2)
-    ax.set_ylabel("Cumulative net profit, million VND", color=MUTED)
-    ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda value, _: f"{value:.0f}".replace("-", "\u2212")))
+    for ax, (title, matrix) in zip(axes, matrices.items()):
+        values = pd.DataFrame(matrix).loc[names, names].to_numpy(float)
+        shown = values.copy()
+        for i in range(3):
+            shown[i, i] = 0.0
+        ax.imshow(shown, cmap=cmap, vmin=-1, vmax=1)
+        for i in range(3):
+            for j in range(3):
+                text = "—" if i == j else f"{values[i, j]:+.2f}".replace("-", "\u2212")
+                ax.text(j, i, text, ha="center", va="center", color=INK if i != j else MUTED,
+                        fontsize=26 if i != j else 22, fontweight="bold" if i != j else "normal")
+        ax.set_xticks(range(3), labels, color=MUTED)
+        ax.set_yticks(range(3), labels if ax is axes[0] else [""] * 3, color=MUTED)
+        ax.tick_params(length=0)
+        for spine in ax.spines.values():
+            spine.set_visible(False)
+        ax.set_xticks([x - 0.5 for x in range(1, 3)], minor=True)
+        ax.set_yticks([y - 0.5 for y in range(1, 3)], minor=True)
+        ax.grid(which="minor", color=SURFACE, linewidth=6)
+        ax.tick_params(which="both", length=0)
+        ax.set_title(title, color=INK, fontsize=24, pad=14)
     fig.tight_layout()
     out.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out, dpi=DPI, facecolor=SURFACE)
@@ -209,7 +254,13 @@ def main() -> int:
             print(path)
         for name, (start, end) in {"in_sample": ("2020-06-01", "2022-12-31"), "valid": ("2023-01-01", "2024-12-31"),
                                    "oos1": ("2025-01-01", "2025-12-31"), "oos2": ("2026-01-01", "2026-12-31")}.items():
-            print(draw_period(REPORTS / "oos2.json", start, end, FIGURES / f"period_equity_{name}.png"))
+            for path in draw_period(REPORTS / "oos2.json", start, end, FIGURES / f"period_equity_{name}"):
+                print(path)
+        periods = json.loads((REPORTS / "oos2.json").read_text(encoding="utf-8"))["correlation"]
+        titles = {"in_sample": "In-sample", "valid": "Valid 2023–24", "oos1": "2025", "oos2": "2026"}
+        print(draw_correlation({titles[k]: periods[k] for k in titles}, FIGURES / "correlation_periods.png", (1664, 520)))
+    baseline = json.loads((REPORTS / "in_sample_baseline.json").read_text(encoding="utf-8"))["correlation"]
+    print(draw_correlation({"In-sample, starting values": baseline}, FIGURES / "correlation_in_sample.png", (620, 600)))
     return 0
 
 
