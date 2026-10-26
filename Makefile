@@ -6,7 +6,6 @@ END ?= 2026-08-14
 .PHONY: setup fetch-data step5 step4 step6 benchmarks figures week test lint check
 
 setup:
-	git submodule update --init --recursive
 	$(UV) sync --frozen
 
 # DNSE 1-minute bars, with 5-minute bars to fill the sessions DNSE lacks at 1 minute.

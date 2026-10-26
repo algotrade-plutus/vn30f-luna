@@ -8,18 +8,19 @@ Research philosophy is binding (AGENTS.md §6): before backtesting any new hypot
 
 ## Commands
 
-Python 3.12, managed with `uv`. `plutus/` is a git submodule installed as an editable dependency (`algotrade-plutus`).
+Python 3.12, managed with `uv`. Plutus (`algotrade-plutus`) is installed from GitHub at the commit pinned in `pyproject.toml` (read-only; no submodule).
 
 ```bash
-make setup                 # git submodule update --init --recursive && uv sync --frozen
+make setup                 # uv sync --frozen
 make fetch-data            # DNSE 1-minute and 5-minute VN30F1M and VN30 bars into data/dnse/
 make step5 && make step4   # in-sample: Ridge CV, Momentum threshold, Basis grid; then the 7-combination baseline
 make step6                 # valid chooses the final combination, then OOS 1 and OOS 2 (each opens once)
 make figures               # buy-and-hold benchmarks and the equity charts
 make week START=2026-08-10 END=2026-08-14   # one-week chart of sleeve and vote positions
 make test                  # ./scripts/run_owned_tests.sh  (uv run --python 3.12 pytest tests -q)
-make lint                  # uv run ruff check .   (only E9/F63/F7/F82; plutus/ excluded)
+make lint                  # uv run ruff check .   (only E9/F63/F7/F82)
 make check                 # test + lint + compileall of src/scripts/tests
+plutus check .             # plutus-verify: rebuild in Docker, rerun steps 2/5/4/6, compare with .plutus/manifest.yaml
 
 # Single test (extra args are passed through to pytest)
 ./scripts/run_owned_tests.sh tests/test_calibrum_1m.py::test_name

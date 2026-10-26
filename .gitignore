@@ -39,6 +39,8 @@ algotrade/runtime/
 plutus-verify/
 .plutus/results/
 .plutus/run/
+.plutus/cache/
+.plutus/expected/data_preparation/
 .plutus/build/
 .plutus/Dockerfile.generated
 

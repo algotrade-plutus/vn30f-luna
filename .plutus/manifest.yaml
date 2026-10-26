@@ -1,0 +1,154 @@
+# Plutus reproducibility manifest (plutus-verify 0.5.x).
+# `plutus check .` builds the locked environment, runs every step in a container
+# and compares the metrics each step writes (scripts/plutus_results.py) with the
+# values below, and every number in the saved stage reports with the blessed copies
+# in .plutus/expected/. `plutus snapshot .` re-blesses them after an intended change.
+schema_version: "2.0"
+
+repo:
+  name: Calibrum VN30F
+  primary_language: python
+
+env:
+  base: python
+  python_version: "3.12"
+  manager: uv
+  lockfile: uv.lock
+  os_packages: [git]   # uv fetches the pinned Plutus commit from GitHub
+
+secrets: []
+
+data_sources:
+  processed: []
+  raw: []
+
+steps:
+  - id: data_preparation
+    nine_step: step_2_data_preparation
+    required: true
+    network: bridge
+    timeout_seconds: 1800
+    command: "python scripts/fetch_dnse_candles.py --start 2018-08-01 --end 2026-10-21 --resolution 1 && python scripts/fetch_dnse_candles.py --start 2018-08-01 --end 2026-10-21 --resolution 5 && python scripts/plutus_results.py data_preparation"
+    outputs: ["data/dnse/*_1m.parquet", "data/dnse/*_5m.parquet"]
+    sub_processes:
+      collection: {description: "VN30F1M and VN30 1-minute and 5-minute bars from the public DNSE chart API, 1 Aug 2018 to 2026-10-21"}
+      processing: {description: "front-month contract code, 5-minute bars fill sessions DNSE lacks at 1 minute, 10- and 30-minute aggregation in src/adapters/data/dnse_minute_bars.py (done when each stage loads the data)"}
+  - id: optimization
+    nine_step: step_5_optimization
+    required: true
+    timeout_seconds: 1800
+    command: "python scripts/run_calibrum_1m.py momentum-cv && python scripts/run_calibrum_1m.py momentum-q && python scripts/run_calibrum_1m.py basis-grid && python scripts/plutus_results.py optimization"
+    outputs: ["reports/calibrum_1m/momentum_model.json", "reports/calibrum_1m/momentum_threshold.json", "reports/calibrum_1m/basis_grid.json"]
+    depends_on: [data_preparation]
+  - id: in_sample
+    nine_step: step_4_in_sample
+    required: true
+    timeout_seconds: 1800
+    command: "python scripts/run_calibrum_1m.py in-sample-baseline && python scripts/plutus_results.py in_sample"
+    outputs: ["reports/calibrum_1m/in_sample_baseline.json"]
+    depends_on: [optimization]
+  - id: out_of_sample
+    nine_step: step_6_out_of_sample
+    required: true
+    timeout_seconds: 1800
+    command: "python scripts/run_calibrum_1m.py valid && python scripts/run_calibrum_1m.py oos1 && python scripts/run_calibrum_1m.py oos2 && python scripts/plutus_results.py out_of_sample"
+    outputs: ["reports/calibrum_1m/valid.json", "reports/calibrum_1m/oos1.json", "reports/calibrum_1m/oos2.json"]
+    depends_on: [optimization]
+
+expected:
+  - step_id: data_preparation
+    metrics:
+      - {name: futures_minute_bars, value: 470406.0, tolerance: {kind: exact, value: 0}}
+      - {name: index_minute_bars, value: 360098.0, tolerance: {kind: exact, value: 0}}
+      - {name: futures_sessions, value: 2041.0, tolerance: {kind: exact, value: 0}}
+    artifacts: []
+  - step_id: optimization
+    metrics:
+      - {name: momentum_lambda, value: 1.0, tolerance: {kind: exact, value: 0}}
+      - {name: momentum_q, value: 0.9, tolerance: {kind: exact, value: 0}}
+      - {name: momentum_theta, value: 0.2320746088667131, tolerance: {kind: relative, value: 0.001}}
+      - {name: basis_window, value: 60.0, tolerance: {kind: exact, value: 0}}
+      - {name: basis_z_entry, value: 1.5, tolerance: {kind: exact, value: 0}}
+      - {name: momentum_sharpe_ratio, value: 1.574276712953697, tolerance: {kind: relative, value: 0.01}}
+      - {name: momentum_net_return, value: 0.7314999999999986, tolerance: {kind: relative, value: 0.01}}
+      - {name: momentum_max_drawdown, value: 0.0872576177285322, tolerance: {kind: relative, value: 0.01}}
+      - {name: basis_sharpe_ratio, value: 0.9861544051460172, tolerance: {kind: relative, value: 0.01}}
+      - {name: basis_net_return, value: 0.5707000000000019, tolerance: {kind: relative, value: 0.01}}
+      - {name: basis_max_drawdown, value: 0.11282896997182706, tolerance: {kind: relative, value: 0.01}}
+    artifacts:
+      - {path: reports/calibrum_1m/momentum_model.json, compare: json_numeric_tolerance}
+      - {path: reports/calibrum_1m/momentum_threshold.json, compare: json_numeric_tolerance}
+      - {path: reports/calibrum_1m/basis_grid.json, compare: json_numeric_tolerance}
+  - step_id: in_sample
+    metrics:
+      - {name: c_sharpe_ratio, value: 1.9323740849956619, tolerance: {kind: relative, value: 0.01}}
+      - {name: c_net_return, value: 1.2154000000000011, tolerance: {kind: relative, value: 0.01}}
+      - {name: c_max_drawdown, value: 0.17207368764264758, tolerance: {kind: relative, value: 0.01}}
+      - {name: b_sharpe_ratio, value: 0.7102868480990627, tolerance: {kind: relative, value: 0.01}}
+      - {name: b_net_return, value: 0.4344000000000022, tolerance: {kind: relative, value: 0.01}}
+      - {name: b_max_drawdown, value: 0.20948898599839416, tolerance: {kind: relative, value: 0.01}}
+      - {name: m_sharpe_ratio, value: 1.5578998239178325, tolerance: {kind: relative, value: 0.01}}
+      - {name: m_net_return, value: 0.834099999999998, tolerance: {kind: relative, value: 0.01}}
+      - {name: m_max_drawdown, value: 0.08157724628312883, tolerance: {kind: relative, value: 0.01}}
+      - {name: c_b_sharpe_ratio, value: 1.5751763589530885, tolerance: {kind: relative, value: 0.01}}
+      - {name: c_b_net_return, value: 1.1931000000000027, tolerance: {kind: relative, value: 0.01}}
+      - {name: c_b_max_drawdown, value: 0.3029535127577765, tolerance: {kind: relative, value: 0.01}}
+      - {name: c_m_sharpe_ratio, value: 2.5392205179886447, tolerance: {kind: relative, value: 0.01}}
+      - {name: c_m_net_return, value: 1.6473999999999989, tolerance: {kind: relative, value: 0.01}}
+      - {name: c_m_max_drawdown, value: 0.09908084244047197, tolerance: {kind: relative, value: 0.01}}
+      - {name: b_m_sharpe_ratio, value: 1.7361131941847454, tolerance: {kind: relative, value: 0.01}}
+      - {name: b_m_net_return, value: 1.0746000000000007, tolerance: {kind: relative, value: 0.01}}
+      - {name: b_m_max_drawdown, value: 0.08094308454722908, tolerance: {kind: relative, value: 0.01}}
+      - {name: c_b_m_sharpe_ratio, value: 2.58784246216167, tolerance: {kind: relative, value: 0.01}}
+      - {name: c_b_m_net_return, value: 1.739400000000002, tolerance: {kind: relative, value: 0.01}}
+      - {name: c_b_m_max_drawdown, value: 0.12737364884604135, tolerance: {kind: relative, value: 0.01}}
+      - {name: c_b_m_net_profit_million_vnd, value: 173.9400000000002, tolerance: {kind: relative, value: 0.01}}
+      - {name: c_b_m_sortino_ratio, value: 4.451258613030164, tolerance: {kind: relative, value: 0.01}}
+      - {name: c_b_m_information_ratio, value: 1.1484086827367042, tolerance: {kind: relative, value: 0.01}}
+      - {name: c_b_m_longest_drawdown_sessions, value: 72.0, tolerance: {kind: relative, value: 0.05}}
+      - {name: c_b_m_trades, value: 488.0, tolerance: {kind: relative, value: 0.01}}
+      - {name: c_b_m_hit_rate, value: 0.4774590163934426, tolerance: {kind: relative, value: 0.01}}
+    artifacts:
+      - {path: reports/calibrum_1m/in_sample_baseline.json, compare: json_numeric_tolerance}
+  - step_id: out_of_sample
+    metrics:
+      - {name: valid_sharpe_ratio, value: 2.0307091754931927, tolerance: {kind: relative, value: 0.01}}
+      - {name: valid_net_return, value: 0.7748, tolerance: {kind: relative, value: 0.01}}
+      - {name: valid_max_drawdown, value: 0.0903071546808906, tolerance: {kind: relative, value: 0.01}}
+      - {name: valid_net_profit_million_vnd, value: 77.48, tolerance: {kind: relative, value: 0.01}}
+      - {name: valid_sortino_ratio, value: 3.38329268423825, tolerance: {kind: relative, value: 0.01}}
+      - {name: valid_information_ratio, value: 0.9634839092654889, tolerance: {kind: relative, value: 0.01}}
+      - {name: valid_longest_drawdown_sessions, value: 128.0, tolerance: {kind: relative, value: 0.05}}
+      - {name: valid_trades, value: 271.0, tolerance: {kind: relative, value: 0.01}}
+      - {name: valid_hit_rate, value: 0.4833948339483395, tolerance: {kind: relative, value: 0.01}}
+      - {name: oos1_sharpe_ratio, value: 3.093743378274065, tolerance: {kind: relative, value: 0.01}}
+      - {name: oos1_net_return, value: 0.9043000000000001, tolerance: {kind: relative, value: 0.01}}
+      - {name: oos1_max_drawdown, value: 0.12689447425397735, tolerance: {kind: relative, value: 0.01}}
+      - {name: oos1_net_profit_million_vnd, value: 90.43000000000002, tolerance: {kind: relative, value: 0.01}}
+      - {name: oos1_sortino_ratio, value: 5.259097450784873, tolerance: {kind: relative, value: 0.01}}
+      - {name: oos1_information_ratio, value: 0.30264681243356567, tolerance: {kind: relative, value: 0.01}}
+      - {name: oos1_longest_drawdown_sessions, value: 92.0, tolerance: {kind: relative, value: 0.05}}
+      - {name: oos1_trades, value: 130.0, tolerance: {kind: relative, value: 0.01}}
+      - {name: oos1_hit_rate, value: 0.5076923076923077, tolerance: {kind: relative, value: 0.01}}
+      - {name: oos2_sharpe_ratio, value: 2.867010698105418, tolerance: {kind: relative, value: 0.01}}
+      - {name: oos2_net_return, value: 0.7170000000000003, tolerance: {kind: relative, value: 0.01}}
+      - {name: oos2_max_drawdown, value: 0.08948015454864783, tolerance: {kind: relative, value: 0.01}}
+      - {name: oos2_net_profit_million_vnd, value: 71.70000000000003, tolerance: {kind: relative, value: 0.01}}
+      - {name: oos2_sortino_ratio, value: 5.223505813719815, tolerance: {kind: relative, value: 0.01}}
+      - {name: oos2_information_ratio, value: 1.873638014960054, tolerance: {kind: relative, value: 0.01}}
+      - {name: oos2_longest_drawdown_sessions, value: 36.0, tolerance: {kind: relative, value: 0.05}}
+      - {name: oos2_trades, value: 114.0, tolerance: {kind: relative, value: 0.01}}
+      - {name: oos2_hit_rate, value: 0.5087719298245614, tolerance: {kind: relative, value: 0.01}}
+    artifacts:
+      - {path: reports/calibrum_1m/valid.json, compare: json_numeric_tolerance}
+      - {path: reports/calibrum_1m/oos1.json, compare: json_numeric_tolerance}
+      - {path: reports/calibrum_1m/oos2.json, compare: json_numeric_tolerance}
+
+nine_step_coverage:
+  step_1_hypothesis: {present: true, section: "1. Forming hypotheses"}
+  step_2_data_preparation: {present: true, section: "2. Data preparation"}
+  step_3_forming_set_of_rules: {present: true, section: "3. Hypotheses to rules"}
+  step_4_in_sample: {present: true, section: "4. In-sample backtest"}
+  step_5_optimization: {present: true, section: "5. Optimization"}
+  step_6_out_of_sample: {present: true, section: "6. Out-of-sample backtest"}
+  step_7_paper_trading: {present: true, section: "7. Paper trading"}

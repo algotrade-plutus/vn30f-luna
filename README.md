@@ -313,10 +313,10 @@ Live results will be reported once there are more than a few sessions.
 
 ## Reproduce
 
-Python 3.12 with [uv](https://docs.astral.sh/uv/); `plutus/` is a git submodule.
+Python 3.12 with [uv](https://docs.astral.sh/uv/). [Plutus](https://github.com/algotradevn/plutus) is installed from GitHub at the commit pinned in `pyproject.toml`.
 
 ```bash
-make setup                 # submodule + locked environment
+make setup                 # locked environment (uv sync --frozen)
 make fetch-data            # DNSE 1-minute and 5-minute bars into data/dnse/
 make step5                 # Ridge λ by cross-validation, Momentum threshold, Basis grid (in-sample only)
 make step4                 # seven combinations with the starting parameters
@@ -324,6 +324,15 @@ make step6                 # valid, then OOS 1 and OOS 2 (each opens once)
 make figures               # benchmarks and equity charts → reports/calibrum_1m/figures/
 make week START=2026-08-10 END=2026-08-14
 make check                 # tests, lint, compile
+```
+
+### Verify with plutus-verify
+
+[`.plutus/manifest.yaml`](.plutus/manifest.yaml) declares the pipeline for [plutus-verify](https://github.com/algotrade-plutus/plutus-verify) (0.5.1, needs Docker). `plutus check .` builds the locked environment, downloads the DNSE bars to 21 Oct 2026 inside the container, runs steps 2, 5, 4 and 6, and compares the metrics each step writes (`scripts/plutus_results.py`) with the blessed values: exit 0 means every number reproduced.
+
+```bash
+uv tool install "plutus-verify[runner] @ https://github.com/algotrade-plutus/plutus-verify/releases/download/v0.5.1/plutus_verify-0.5.1-py3-none-any.whl"
+plutus check .             # about 15 minutes the first time (image build and data download)
 ```
 
 | Path | What |
@@ -336,3 +345,4 @@ make check                 # tests, lint, compile
 | `scripts/run_calibrum_1m.py` | One protocol step per stage |
 | `research/calibrum-1m/` | Protocol (locked before the runs) and results |
 | `papertrade/` | Step 7 paper runtime |
+| `.plutus/manifest.yaml`, `scripts/plutus_results.py` | plutus-verify pipeline and the metrics each step reports |

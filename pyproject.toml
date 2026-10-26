@@ -14,11 +14,11 @@ dependencies = [
     "pandas>=2.2",
     "pyarrow>=15",
     "pytz>=2024.1",
-    "torch>=2.0",
 ]
 
 [tool.uv.sources]
-algotrade-plutus = { path = "plutus", editable = true }
+# Plutus pinned to the commit the results were produced with (read-only; installed from GitHub).
+algotrade-plutus = { git = "https://github.com/algotradevn/plutus.git", rev = "0259208c2a0ba3bf39d5988b57b4ea92235e129a" }
 
 [dependency-groups]
 dev = [
@@ -32,7 +32,7 @@ packages = ["src"]
 
 [tool.ruff]
 target-version = "py312"
-extend-exclude = ["plutus", "algotrade/.venv"]
+extend-exclude = ["algotrade/.venv"]
 
 [tool.ruff.lint]
 select = ["E9", "F63", "F7", "F82"]
