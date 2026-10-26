@@ -2,7 +2,7 @@
 
 Calibrum trades the VN30 index futures front-month contract (VN30F1M). It combines three sources of alpha whose good and bad periods differ: a **Monday-to-Wednesday calendar**, **basis reversion** between the futures and the index, and **intraday momentum** measured by a Ridge regression. The three sleeves vote, and the strategy holds at most one contract.
 
-This version is rebuilt on DNSE 1-minute data and follows steps 1 to 6 of the ALGOTRADE 9-step process. Over June 2020 – October 2026, with one set of parameters, it makes **425 million VND on 100 million VND of capital**, about four times holding the futures, and it stays profitable in both out-of-sample years.
+This version is rebuilt on DNSE 1-minute data and follows steps 1 to 7 of the ALGOTRADE 9-step process; paper trading has run since 25 Aug 2026. Over June 2020 – October 2026, with one set of parameters, it makes **425 million VND on 100 million VND of capital**, about four times holding the futures, and it stays profitable in both out-of-sample years.
 
 | | In-sample 2020–22 | Valid 2023–24 | OOS 1 · 2025 | OOS 2 · 2026 |
 |---|---:|---:|---:|---:|
@@ -140,23 +140,32 @@ All seven combinations (C, B, M, C+B, C+M, B+M, C+B+M) are tested; each holds at
 
 **Metrics.** Sharpe follows Plutus (`plutus.evaluation.metrics`): $`r_t = \mathrm{PnL}_t / \mathrm{Equity}_{t-1}`$, $`\mathrm{Sharpe} = \sqrt{250}\,(\bar{r} - r_f/250)/\sigma_r`$ with $`r_f = 3\%`$. Sortino uses the same 3% as its threshold and only downside deviation; the information ratio is $`\sqrt{250}\,\overline{(r - r_b)}/\sigma_{r - r_b}`$ against holding one VN30F1M contract on the same capital; the longest drawdown counts sessions from a peak to the next new peak. Also net profit, max drawdown, margin (net profit ÷ value traded, bps), trades, hit rate.
 
-**Starting parameters** (before optimization): Basis W = 40, z_in = 1.5; Momentum λ = 1, trade the strongest 20% of scores.
+**Starting values**, set before any result: Basis W = 40, z_in = 1.5; Momentum λ = 1, q = 0.8 → θ = 0.166 (trade bars with |s| ≥ θ); Calendar as researched.
 
-| Combination | Net (M VND) | Sharpe | Max DD | Trades |
-|---|---:|---:|---:|---:|
-| C | 121.5 | 1.93 | 17.2% | 205 |
-| B | 43.4 | 0.71 | 20.9% | 209 |
-| M | 83.4 | 1.56 | 8.2% | 451 |
-| C+B | 119.3 | 1.58 | 30.3% | 304 |
-| C+M | 164.7 | 2.54 | 9.9% | 452 |
-| B+M | 107.5 | 1.74 | 8.1% | 462 |
-| **C+B+M** | **173.9** | **2.59** | 12.7% | 488 |
+| Combination | Net (M VND) | Sharpe | Max DD | Trades / year | Hit rate |
+|---|---:|---:|---:|---:|---:|
+| C | 121.5 | 1.93 | 17.2% | 79 | 63% |
+| B | 43.4 | 0.71 | 20.9% | 81 | 41% |
+| M | 83.4 | 1.56 | 8.2% | 174 | 46% |
+| C+B | 119.3 | 1.58 | 30.3% | 117 | 55% |
+| C+M | 164.7 | 2.54 | 9.9% | 174 | 50% |
+| B+M | 107.5 | 1.74 | 8.1% | 178 | 44% |
+| **C+B+M** | **173.9** | **2.59** | 12.7% | 188 | 48% |
 
 ![Each sleeve alone, in-sample](image/README/in_sample_equity_sleeves.png)
 
 ![Pairs and all three, in-sample](image/README/in_sample_equity_combos.png)
 
-Holding the market made only 28 million (futures) and 18 million (index) in-sample, and gave most of it back in 2022. The daily profits of the sleeves barely move together (C–B −0.09, C–M +0.15, B–M −0.07), which is why the combination is steadier than any sleeve.
+Holding the market made only 28 million (futures) and 18 million (index) in-sample, and gave most of it back in 2022. The daily profits of the sleeves barely move together, which is why the combination is steadier than any sleeve:
+
+<img src="image/README/correlation_in_sample.png" alt="Correlation of daily profit, in-sample, starting values: C–B −0.09, C–M +0.15, B–M −0.07" width="360">
+
+**What the first run tells us to tune.**
+
+- **Calendar** is the strongest sleeve (Sharpe 1.93, 63% of trades win). Its rules come from its own research, so step 5 leaves it alone.
+- **Basis** is the weakest (Sharpe 0.71, drawdown 21%, 41% of trades win), and paired with Calendar it lifts the drawdown to 30%: tune W and z_in.
+- **Momentum** trades 174 times a year, and costs take 36 of its 120 million VND gross, 30%: trade fewer, stronger signals, so tune λ and θ.
+- **The vote already works**: correlations near zero, and every combination is positive in 2020, 2021 and 2022. Step 5 improves the parts, not the vote.
 
 ---
 
@@ -177,13 +186,17 @@ All choices use in-sample only.
 
 λ = 1 predicts direction on unseen data in all four folds (IC 0.08 to 0.16). All five fitted weights are positive (open +0.057, VWAP +0.038, 4-bar average +0.026, body +0.019, up/down +0.018): a price far from VWAP keeps going too.
 
-**Momentum threshold.** Trading only the strongest 10% of scores halves the cost and gives the best Sharpe; all three settings profit:
+**Momentum threshold.** The model scores every regular 30-minute bar: 5,192 bars in-sample. θ is a quantile q of those |s|, computed once and frozen:
 
-| Trade the strongest | Trades | Hit rate | Cost (M VND) | Net (M VND) | Sharpe |
-|---|---:|---:|---:|---:|---:|
-| 30% | 566 | 43% | 45.3 | 90.0 | 1.54 |
-| 20% | 451 | 46% | 36.1 | 83.4 | 1.56 |
-| **10%** | 279 | 50% | 22.3 | 73.2 | **1.57** |
+![Histogram of the in-sample Momentum scores with θ at q = 0.7, 0.8 and 0.9](image/README/momentum_score_quantiles.png)
+
+| q | θ | Trades / year | Hit rate | Cost (M VND) | Net (M VND) | Sharpe |
+|---|---:|---:|---:|---:|---:|---:|
+| 0.7 | 0.127 | 218 | 43% | 45.3 | 90.0 | 1.54 |
+| 0.8 | 0.166 | 174 | 46% | 36.1 | 83.4 | 1.56 |
+| **0.9** | **0.232** | **107** | **50%** | **22.3** | **73.2** | **1.57** |
+
+Half the cost, the same Sharpe: q = 0.9 trades 107 times a year instead of 174 and cost falls from 30% to 23% of the gross profit. It is not a sharp optimum (Sharpe 1.54 to 1.57, net profit falls a little); it wins on cost.
 
 **Basis grid.** Sharpe after costs; each cell is scored by the mean Sharpe of its 3 × 3 neighbourhood, so a lucky single cell is not chosen:
 
@@ -197,7 +210,20 @@ All choices use in-sample only.
 
 Chosen W = 60, z_in = 1.5 (region 1.03, the best; all six neighbours profit). Basis earns for the stated reason: 79% of 380 stretches past 1.5 closed at least halfway within 8 bars, and 91% of its gross profit (63.6 of 69.9 M VND) came from the basis closing, only 6.3 M from the index moving.
 
-**Carried to step 6:** Calendar unchanged; Basis W = 60, z_in = 1.5; Momentum λ = 1, strongest 10% of scores (θ = 0.232).
+**Result: tuning helps, modestly.** In-sample, before → after:
+
+| | Step 4 values | Step 5 values | Sharpe | Net (M VND) | Max DD |
+|---|---|---|---:|---:|---:|
+| Calendar | as researched | unchanged | 1.94 | 122 | 17.2% |
+| Basis | W = 40, z_in = 1.5 | **W = 60**, z_in = 1.5 | 0.71 → **0.99** | 43 → **57** | 21% → **11%** |
+| Momentum | λ = 1, q = 0.8 | λ = 1, **q = 0.9** (θ = 0.232) | 1.56 → 1.57 | 83 → 73 | 8.2% → 8.7% |
+| **C+B+M** | vote | vote | 2.59 → **2.76** | 174 → **181** | 12.7% → **11.1%** |
+
+A modest gain is a good sign: tuning did not squeeze a much higher in-sample number out of the same data. Valid and both out-of-sample years are still untouched.
+
+![Each sleeve alone after tuning, in-sample](image/README/period_equity_in_sample_sleeves.png)
+
+![Pairs and all three after tuning, in-sample](image/README/period_equity_in_sample_combos.png)
 
 ---
 
@@ -262,7 +288,26 @@ The full record, including every amendment made after a result was seen, is in [
 
 ## 7. Paper trading
 
-Calibrum C+B+M trades on the exchange’s paper platform from 26 Oct 2026, 10 contracts, from an AWS EC2 (`papertrade/`). The runtime builds its targets with the same code as the backtest, on the same DNSE 1-minute bars; one difference is deliberate: the bars that end the continuous session close at 14:28 so orders fill before the closing auction (backtest of that variant: 407 instead of 425 million VND, OOS Sharpe 3.29 and 2.86). From 22 Oct 2026 the data is blind.
+Paper trading on the exchange’s paper platform began on 25 Aug 2026 with the Calendar bot; Calibrum C+B+M replaced it on 23 Oct 2026. From 22 Oct the data is blind.
+
+**Calendar on paper, 24 Aug – 23 Oct 2026** (mostly 8 contracts on 500 million VND of paper capital):
+
+| Net profit | Return | Sharpe | Max drawdown | Round trips won | Fees |
+|---:|---:|---:|---:|---:|---:|
+| +54.7 M VND | +10.9% | ≈ 2.2 | ≈ −11% | 12 of 23 | 7.3 M VND |
+
+![Calendar bot on the paper account against holding 8 VN30F1M, August to October 2026](image/README/paper_calendar.png)
+
+The platform’s own holding-period chart shows +10.89% for the account against +5.57% for VN30 and +6.30% for VNINDEX over 27 Jul – 25 Oct. Holding 8 futures contracts from the day the bot started (rolled at each expiry) lost 38 million VND. Profit is from the account’s trades after fees; Sharpe and drawdown are estimates from an equity curve marked at each session’s close with DNSE prices (the platform’s NAV history API returns nothing).
+
+**Calibrum live, from 23 Oct 2026** (10 contracts, AWS EC2, [`papertrade/`](papertrade/README.md)):
+
+- **Same code, same data.** Each minute the runtime reads DNSE 1-minute bars and runs the backtest’s own sleeve code (`src/lab/calibrum_1m/live.py`) with the frozen step-5 parameters. The bars it reads matched the research data on all 10,945 minutes compared, and its target equals the backtest position at 399 of 400 random minutes 2021–2026 (the miss is a day with no VN30 data).
+- **One deliberate change.** The bars that end the continuous session close at 14:28, so orders fill before the closing auction (backtest of that variant: 407 instead of 425 million VND, OOS Sharpe 3.29 and 2.86).
+- **Orders.** One LIMIT order at a time, 0.3 points through the book; position and cash always read from the broker; open min(10, buying power); below the margin held, sell just enough contracts; no order while data are late or the broker link is down.
+- **Runs by itself.** systemd starts it at 08:30 on trading days and stops it at 15:00; a crash or reboot restarts it.
+
+Live results will be reported once there are more than a few sessions.
 
 ---
 
