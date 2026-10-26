@@ -2,7 +2,7 @@
 
 Calibrum trades the VN30 index futures front-month contract (VN30F1M). It combines three sources of alpha whose good and bad periods differ: a **Monday-to-Wednesday calendar**, **basis reversion** between the futures and the index, and **intraday momentum** measured by a Ridge regression. The three sleeves vote, and the strategy holds at most one contract.
 
-This version is rebuilt on DNSE 1-minute data and follows steps 1 to 7 of the ALGOTRADE 9-step process; paper trading has run since 25 Aug 2026. Over June 2020 – October 2026, with one set of parameters, it makes **425 million VND on 100 million VND of capital**, about four times holding the futures, and it stays profitable in both out-of-sample years.
+This version is rebuilt on DNSE 1-minute data and follows steps 1 to 7 of the ALGOTRADE 9-step process; paper trading has run since 24 Aug 2026. Over June 2020 – October 2026, with one set of parameters, it makes **425 million VND on 100 million VND of capital**, about four times holding the futures, and it stays profitable in both out-of-sample years.
 
 | | In-sample 2020–22 | Valid 2023–24 | OOS 1 · 2025 | OOS 2 · 2026 |
 |---|---:|---:|---:|---:|
@@ -288,17 +288,25 @@ The full record, including every amendment made after a result was seen, is in [
 
 ## 7. Paper trading
 
-Paper trading on the exchange’s paper platform began on 25 Aug 2026 with the Calendar bot; Calibrum C+B+M replaced it on 23 Oct 2026. From 22 Oct the data is blind.
+Paper trading on the exchange’s paper platform began on 24 Aug 2026 with a first Calendar bot, Calendar v1, which had its own rules and code; Calibrum C+B+M replaced it on 23 Oct 2026. From 22 Oct the data is blind.
 
-**Calendar on paper, 24 Aug – 23 Oct 2026** (mostly 8 contracts on 500 million VND of paper capital):
+**Calendar v1 rules.** Each session at 14:24 the bot set the position for the next session: long if that session was (1) a Tuesday or Wednesday, (2) one of the first two weekdays of the month, (3) the last session before a holiday, or (4) the expiry Thursday, held to 14:24 of that session. (5) On Monday at 09:16 it went short if the market opened at or below the reference price, held to 14:24 (skipped in the first three weekdays of the month and before a holiday). 8 contracts (7 on the first trade) on 500 million VND of paper capital; the expiring contract closed on expiry day. Calibrum’s Calendar sleeve (step 3) keeps only the Monday short and the mid-week long.
+
+**Calendar v1 on paper, 24 Aug – 23 Oct 2026:**
 
 | Net profit | Return | Sharpe | Max drawdown | Round trips won | Fees |
 |---:|---:|---:|---:|---:|---:|
 | +54.7 M VND | +10.9% | ≈ 2.2 | ≈ −11% | 12 of 23 | 7.3 M VND |
 
-![Calendar bot on the paper account against holding 8 VN30F1M from the start of the August contract (17 Jul) to 23 Oct 2026](image/README/paper_calendar.png)
+![Calendar v1 bot on the paper account against holding 8 VN30F1M from the start of the August contract (17 Jul) to 23 Oct 2026](image/README/paper_calendar.png)
 
 The platform’s own holding-period chart shows +10.89% for the account against +5.57% for VN30 and +6.30% for VNINDEX over 27 Jul – 25 Oct. Holding 8 futures contracts from the day the bot started (rolled at each expiry) lost 38 million VND; from 17 Jul, the first session of the August contract where the chart starts, it lost 29 million. Profit is from the account’s trades after fees; Sharpe and drawdown are estimates from an equity curve marked at each session’s close with DNSE prices (the platform’s NAV history API returns nothing). The live trades cannot be rerun, but the numbers can be recomputed: the account’s 47 fills, exported from the platform’s REST transactions endpoint, are in [`research/paper-trading/calendar_fills.csv`](research/paper-trading/calendar_fills.csv), and `make paper` (`scripts/paper_calendar.py`) rebuilds every figure above and the chart from them; marked to market, the account ends exactly at the platform’s realized profit after fees.
+
+**Why v1 was replaced although it made money.**
+
+1. *Too many rules from the past.* Each of the five rules was found by looking at past calendar seasons; the more such rules, the more likely some are luck. Calibrum’s Calendar keeps two, each with a stated reason: weak Mondays, strong mid-week.
+2. *One source of alpha.* All the risk rode on one calendar effect. Calibrum adds Basis and Momentum, whose daily net P&L correlates −0.09 and 0.15 with Calendar’s in-sample.
+3. *Live code was not the research code.* Files were patched by hand on the server, so no one could say which code ran; a misnamed parameter silently did nothing; the holiday table on the server differed from the research one; late fill reports could have doubled an order. The 23 defects and their fixes are in [`papertrade/docs/REBUILD_NOTES.md`](papertrade/docs/REBUILD_NOTES.md). Calibrum’s runtime calls the backtest’s own code.
 
 **Calibrum live, from 23 Oct 2026** (10 contracts, AWS EC2, [`papertrade/`](papertrade/README.md)):
 
@@ -358,6 +366,6 @@ plutus check .             # about 15 minutes the first time (image build and da
 | `src/lab/backtest/` | Position-stream accounting and metrics |
 | `scripts/run_calibrum_1m.py` | One protocol step per stage |
 | `research/calibrum-1m/` | Protocol (locked before the runs) and results |
-| `research/paper-trading/`, `scripts/paper_calendar.py` | Calendar bot's paper fills and the step 7 numbers |
+| `research/paper-trading/`, `scripts/paper_calendar.py` | Calendar v1 paper fills and the step 7 numbers |
 | `papertrade/` | Step 7 paper runtime |
 | `.plutus/manifest.yaml`, `scripts/plutus_results.py` | plutus-verify pipeline and the metrics each step reports |

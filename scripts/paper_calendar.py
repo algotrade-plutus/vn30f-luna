@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Step 7: the Calendar bot on the PaperTrade account, 24 Aug to 23 Oct 2026.
+"""Step 7: the Calendar v1 bot (the rules before the Calibrum redesign) on the PaperTrade account, 24 Aug to 23 Oct 2026.
 
 Recomputes the reported paper results from the account's fills
 (research/paper-trading/calendar_fills.csv, exported from the platform's REST
@@ -121,7 +121,7 @@ def draw(curve: pd.DataFrame, adjusted: pd.Series, chart_start: pd.Timestamp, ou
     ax.text(bot_start + pd.Timedelta(days=1), label_y, f"Bot starts, {START:%d %b}", color=INK, fontsize=18,
             va="top", fontweight="bold")
     for series, text, colour, weight in (
-        (bot, f"Calendar bot  {bot.iloc[-1]:+.0f}M", INK, "bold"),
+        (bot, f"Calendar v1 bot  {bot.iloc[-1]:+.0f}M", INK, "bold"),
         (hold, f"Holding {HOLD} VN30F1M from {chart_start:%d %b}  {hold.iloc[-1]:+.0f}M", MUTED, "normal"),
     ):
         ax.annotate(text.replace("-", "−"), xy=(series.index[-1], series.iloc[-1]), xytext=(12, 0),
