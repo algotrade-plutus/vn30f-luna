@@ -296,9 +296,9 @@ Paper trading on the exchange’s paper platform began on 25 Aug 2026 with the C
 |---:|---:|---:|---:|---:|---:|
 | +54.7 M VND | +10.9% | ≈ 2.2 | ≈ −11% | 12 of 23 | 7.3 M VND |
 
-![Calendar bot on the paper account against holding 8 VN30F1M, August to October 2026](image/README/paper_calendar.png)
+![Calendar bot on the paper account against holding 8 VN30F1M from the start of the August contract (17 Jul) to 23 Oct 2026](image/README/paper_calendar.png)
 
-The platform’s own holding-period chart shows +10.89% for the account against +5.57% for VN30 and +6.30% for VNINDEX over 27 Jul – 25 Oct. Holding 8 futures contracts from the day the bot started (rolled at each expiry) lost 38 million VND. Profit is from the account’s trades after fees; Sharpe and drawdown are estimates from an equity curve marked at each session’s close with DNSE prices (the platform’s NAV history API returns nothing).
+The platform’s own holding-period chart shows +10.89% for the account against +5.57% for VN30 and +6.30% for VNINDEX over 27 Jul – 25 Oct. Holding 8 futures contracts from the day the bot started (rolled at each expiry) lost 38 million VND; from 17 Jul, the first session of the August contract where the chart starts, it lost 29 million. Profit is from the account’s trades after fees; Sharpe and drawdown are estimates from an equity curve marked at each session’s close with DNSE prices (the platform’s NAV history API returns nothing).
 
 **Calibrum live, from 23 Oct 2026** (10 contracts, AWS EC2, [`papertrade/`](papertrade/README.md)):
 
