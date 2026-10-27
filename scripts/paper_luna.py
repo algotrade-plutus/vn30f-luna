@@ -99,25 +99,25 @@ def draw(curve: pd.DataFrame, adjusted: pd.Series, chart_start: pd.Timestamp, ou
     import matplotlib.dates as mdates
     import matplotlib.pyplot as plt
 
-    from scripts.plot_calibrum_1m import DPI, GRID, INK, MUTED, SURFACE
+    from scripts.plot_calibrum_1m import ACCENT, DPI, FONT, FONT_SIZE, GRID, INK, MUTED, SHADE, SURFACE
 
     days = adjusted.loc[chart_start:END].index
     bot = (curve["pnl"] / 1e6).reindex(days).fillna(0.0)
     hold = (adjusted.loc[days] - adjusted.loc[chart_start]) * HOLD * MULTIPLIER / 1e6
     bot_start = adjusted.loc[: START - pd.Timedelta(days=1)].index[-1]  # both lines are marked at closes
 
-    plt.rcParams.update({"font.family": "Arial", "font.size": 18, "axes.edgecolor": GRID})
+    plt.rcParams.update({"font.family": FONT, "font.size": FONT_SIZE + 1, "axes.edgecolor": GRID})
     fig, ax = plt.subplots(figsize=(2 * 1664 / DPI, 2 * 600 / DPI))
     fig.patch.set_facecolor(SURFACE)
     ax.set_facecolor(SURFACE)
-    ax.axvspan(days[0], bot_start, color="#E6E2D6", linewidth=0)
-    ax.plot(bot.index, bot.values, color="#2a78d6", linewidth=3.4, solid_capstyle="round")
+    ax.axvspan(days[0], bot_start, color=SHADE, linewidth=0)
+    ax.plot(bot.index, bot.values, color=ACCENT, linewidth=3.4, solid_capstyle="round")
     ax.plot(hold.index, hold.values, color=INK, linewidth=1.8, linestyle=(0, (1.5, 2.5)))
     ax.axhline(0, color=MUTED, linewidth=1)
     top, bottom = max(bot.max(), hold.max()), min(bot.min(), hold.min())
     label_y = top + 0.06 * (top - bottom)
     ax.axvline(bot_start, color=MUTED, linewidth=1.6, linestyle=(0, (4, 3)))
-    ax.text(days[0] + pd.Timedelta(days=1), label_y, "August contract, before the bot", color=MUTED, fontsize=18, va="top")
+    ax.text(days[0] + pd.Timedelta(days=1), label_y, "Before the bot", color=MUTED, fontsize=18, va="top")
     ax.text(bot_start + pd.Timedelta(days=1), label_y, f"Bot starts, {START:%d %b}", color=INK, fontsize=18,
             va="top", fontweight="bold")
     for series, text, colour, weight in (

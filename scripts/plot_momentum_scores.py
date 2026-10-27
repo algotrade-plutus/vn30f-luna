@@ -21,11 +21,11 @@ WORKSPACE = Path(__file__).resolve().parents[1]
 if str(WORKSPACE) not in sys.path:
     sys.path.insert(0, str(WORKSPACE))
 
-from scripts.plot_calibrum_1m import DPI, FIGURES, GRID, INK, MUTED, SURFACE  # noqa: E402
+from scripts.plot_calibrum_1m import ACCENT, DPI, FIGURES, FONT, FONT_SIZE, GRID, INK, MUTED, SURFACE  # noqa: E402
 from scripts.run_calibrum_1m import _model  # noqa: E402
 from src.lab.calibrum_1m import pipeline  # noqa: E402
 
-KEPT, OUT_OF_TRADE = "#eb6834", "#c9cfd8"
+KEPT, OUT_OF_TRADE = ACCENT, "#D5D9E0"
 QUANTILES = (0.7, 0.8, 0.9)
 X_MAX = 0.6
 
@@ -39,7 +39,7 @@ def main() -> int:
     thetas = {q: float(scores.quantile(q)) for q in QUANTILES}
     chosen = thetas[0.9]
 
-    plt.rcParams.update({"font.family": "Arial", "font.size": 18, "axes.edgecolor": GRID})
+    plt.rcParams.update({"font.family": FONT, "font.size": FONT_SIZE + 1, "axes.edgecolor": GRID})
     fig, ax = plt.subplots(figsize=(2 * 1664 / DPI, 2 * 600 / DPI))
     fig.patch.set_facecolor(SURFACE)
     ax.set_facecolor(SURFACE)

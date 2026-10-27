@@ -36,13 +36,16 @@ REPORTS = WORKSPACE / "reports" / "calibrum_1m"
 FIGURES = REPORTS / "figures"
 MILLION_VND_PER_POINT = 0.1  # 1 point = 100,000 VND
 
-SURFACE, INK, MUTED, GRID, SHADE = "#F3F1EA", "#14213D", "#5B6577", "#D9D3C3", "#E6E2D6"
+# White, as the live dashboard: grey grid and text, one blue accent.
+SURFACE, INK, MUTED, GRID, SHADE = "#FFFFFF", "#222222", "#888888", "#E1E1E1", "#F4F4F4"
+ACCENT, ORANGE = "#3b5998", "#e08a3c"
+FONT, FONT_SIZE = ["Verdana", "DejaVu Sans"], 15  # DejaVu fills glyphs Verdana lacks (⇔, θ)
 PANELS = (
-    ("Each sleeve alone", {"C": "#2a78d6", "B": "#eb6834", "M": "#1baf7a"}),
-    ("Pairs and all three", {"C+B": "#e87ba4", "C+M": "#008300", "B+M": "#eda100", "C+B+M": "#6250d6"}),
+    ("Each sleeve alone", {"C": ACCENT, "B": ORANGE, "M": "#1baf7a"}),
+    ("Pairs and all three", {"C+B": "#e87ba4", "C+M": "#008300", "B+M": "#eda100", "C+B+M": ACCENT}),
 )
 NAMES = {"C": "Calendar", "B": "Basis", "M": "Momentum", "VN30F1M": "VN30F1M hold", "VN30": "VN30 hold"}
-BENCHMARKS = {"VN30F1M": (INK, (0, (1.5, 2.5))), "VN30": (MUTED, (0, (6, 3)))}
+BENCHMARKS = {"VN30F1M": (MUTED, (0, (1.5, 2.5))), "VN30": ("#BBBBBB", (0, (6, 3)))}
 PERIODS = (
     ("In-sample", "2020-06-01"),
     ("Valid", "2023-01-01"),
@@ -90,7 +93,7 @@ def draw(source: Path, out_stem: Path, size_px: tuple[int, int], mark_periods: b
     last = max(curve.index[-1] for curve in curves.values())
     references = _benchmarks(first, last)
     written = []
-    plt.rcParams.update({"font.family": "Arial", "font.size": 17, "axes.edgecolor": GRID})
+    plt.rcParams.update({"font.family": FONT, "font.size": FONT_SIZE, "axes.edgecolor": GRID})
     for (title, colours), suffix in zip(PANELS, ("sleeves", "combos")):
         shown = {**{combo: curves[combo] for combo in colours}, **references}
         top = max(series.max() for series in shown.values())
@@ -158,7 +161,7 @@ def draw_period(source: Path, start: str, end: str, out_stem: Path, size_px: tup
     first, last = min(c.index[0] for c in curves.values()), max(c.index[-1] for c in curves.values())
     references = _benchmarks(first, last)
     written = []
-    plt.rcParams.update({"font.family": "Arial", "font.size": 17, "axes.edgecolor": GRID})
+    plt.rcParams.update({"font.family": FONT, "font.size": FONT_SIZE, "axes.edgecolor": GRID})
     for (_, colours), suffix in zip(PANELS, ("sleeves", "combos")):
         shown = {**{name: curves[name] for name in colours}, **references}
         top = max(0.0, max(series.max() for series in shown.values()))
@@ -211,10 +214,10 @@ def draw_correlation(matrices: dict[str, dict], out: Path, size_px: tuple[int, i
     """
     from matplotlib.colors import LinearSegmentedColormap
 
-    cmap = LinearSegmentedColormap.from_list("diverging", ["#2a78d6", "#E6E2D6", "#eb6834"])
+    cmap = LinearSegmentedColormap.from_list("diverging", [ACCENT, SHADE, ORANGE])
     names = ["C", "B", "M"]
     labels = [NAMES[n] for n in names]
-    plt.rcParams.update({"font.family": "Arial", "font.size": 18})
+    plt.rcParams.update({"font.family": FONT, "font.size": FONT_SIZE + 1})
     fig, axes = plt.subplots(1, len(matrices), figsize=(2 * size_px[0] / DPI, 2 * size_px[1] / DPI))
     axes = [axes] if len(matrices) == 1 else list(axes)
     fig.patch.set_facecolor(SURFACE)

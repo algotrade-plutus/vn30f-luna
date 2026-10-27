@@ -29,8 +29,11 @@ if str(WORKSPACE) not in sys.path:
     sys.path.insert(0, str(WORKSPACE))
 
 from scripts.plot_calibrum_1m import (  # noqa: E402
+    ACCENT,
     BENCHMARKS,
     DPI,
+    FONT,
+    FONT_SIZE,
     FIGURES,
     GRID,
     INK,
@@ -41,7 +44,7 @@ from scripts.plot_calibrum_1m import (  # noqa: E402
 )
 from src.lab.calibrum_1m import pipeline  # noqa: E402
 
-COMBO, COLOUR = "C+B+M", "#6250d6"
+COMBO, COLOUR = "C+B+M", ACCENT
 NAMES = {"in_sample": "In-sample", "valid": "Valid", "oos1": "OOS 1", "oos2": "OOS 2"}
 CAPITAL_MILLION = 100.0
 POINT_MILLION = 0.1
@@ -81,7 +84,7 @@ def main() -> int:
     hold = _daily(json.loads((REPORTS / "benchmarks.json").read_text(encoding="utf-8"))["daily_net_points"], "VN30F1M")
     windows = pipeline.periods(pipeline.load_config())
 
-    plt.rcParams.update({"font.family": "Arial", "font.size": 17, "axes.edgecolor": GRID})
+    plt.rcParams.update({"font.family": FONT, "font.size": FONT_SIZE, "axes.edgecolor": GRID})
     fig, ax = plt.subplots(figsize=(2 * 1664 / DPI, 2 * 640 / DPI))
     fig.patch.set_facecolor(SURFACE)
     ax.set_facecolor(SURFACE)

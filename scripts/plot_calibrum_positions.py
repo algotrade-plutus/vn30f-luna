@@ -32,8 +32,10 @@ from run_calibrum_1m import _optimised_sleeves  # noqa: E402
 from src.lab.calibrum_1m import pipeline  # noqa: E402
 
 FIGURES = WORKSPACE / "reports" / "calibrum_1m" / "figures"
-SURFACE, INK, MUTED, GRID, LANE = "#F3F1EA", "#14213D", "#5B6577", "#D9D3C3", "#E6E2D6"
-LONG, SHORT = "#2a78d6", "#eb6834"
+from scripts.plot_calibrum_1m import ACCENT, FONT, FONT_SIZE, GRID, INK, MUTED, ORANGE, SURFACE  # noqa: E402
+
+LANE = "#F4F4F4"
+LONG, SHORT = ACCENT, ORANGE
 LANES = (("C", "Calendar"), ("B", "Basis"), ("M", "Momentum"), ("V", "Vote C+B+M"))
 DPI = 200
 
@@ -63,7 +65,7 @@ def main() -> int:
     x = np.arange(len(frame))
     day_starts = frame.index[frame["t"].dt.date.ne(frame["t"].dt.date.shift())].to_numpy()
 
-    plt.rcParams.update({"font.family": "Arial", "font.size": 17, "axes.edgecolor": GRID})
+    plt.rcParams.update({"font.family": FONT, "font.size": FONT_SIZE, "axes.edgecolor": GRID})
     size_px = (1664, 620)
     fig = plt.figure(figsize=(2 * size_px[0] / DPI, 2 * size_px[1] / DPI))
     fig.patch.set_facecolor(SURFACE)
