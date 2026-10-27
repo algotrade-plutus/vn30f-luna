@@ -9,6 +9,7 @@
 - period_equity_<period>_*.png (steps 5 and 6): one period at a time with the
   step-5 parameters, the same two panels, every curve starting at zero at the
   period's first session.
+- yearly_in_sample.png (step 4): in-sample net profit by year of the seven combinations.
 - correlation_*.png: daily-profit correlation of the sleeves as heatmaps
   (in-sample with the starting values; each period with the step-5 ones).
 
@@ -207,10 +208,10 @@ def draw_period(source: Path, start: str, end: str, out_stem: Path, size_px: tup
 
 
 def draw_correlation(matrices: dict[str, dict], out: Path, size_px: tuple[int, int]) -> Path:
-    """Daily-profit correlation of the three sleeves as heatmaps, one per title, on a fixed -1..+1 scale.
+    """Daily-profit correlation of the three sleeves as a full matrix, one per title, on a fixed -1..+1 scale.
 
     Diverging blue (negative) to orange (positive) through a neutral grey at zero;
-    the diagonal is left grey, and every cell carries its value.
+    every cell carries its value, and the colour scale under the matrices reads by itself.
     """
     from matplotlib.colors import LinearSegmentedColormap
 
@@ -223,25 +224,74 @@ def draw_correlation(matrices: dict[str, dict], out: Path, size_px: tuple[int, i
     fig.patch.set_facecolor(SURFACE)
     for ax, (title, matrix) in zip(axes, matrices.items()):
         values = pd.DataFrame(matrix).loc[names, names].to_numpy(float)
-        shown = values.copy()
-        for i in range(3):
-            shown[i, i] = 0.0
-        ax.imshow(shown, cmap=cmap, vmin=-1, vmax=1)
+        image = ax.imshow(values, cmap=cmap, vmin=-1, vmax=1)
         for i in range(3):
             for j in range(3):
-                text = "—" if i == j else f"{values[i, j]:+.2f}".replace("-", "\u2212")
-                ax.text(j, i, text, ha="center", va="center", color=INK if i != j else MUTED,
-                        fontsize=26 if i != j else 22, fontweight="bold" if i != j else "normal")
-        ax.set_xticks(range(3), labels, color=MUTED)
-        ax.set_yticks(range(3), labels if ax is axes[0] else [""] * 3, color=MUTED)
-        ax.tick_params(length=0)
+                ax.text(j, i, f"{values[i, j]:+.2f}".replace("-", "\u2212").replace("+1.00", "1.00"), ha="center",
+                        va="center", color=SURFACE if i == j else INK, fontsize=18, fontweight="bold")
+        ax.set_xticks(range(3), labels, color=INK)
+        ax.set_yticks(range(3), labels if ax is axes[0] else [""] * 3, color=INK)
         for spine in ax.spines.values():
             spine.set_visible(False)
-        ax.set_xticks([x - 0.5 for x in range(1, 3)], minor=True)
-        ax.set_yticks([y - 0.5 for y in range(1, 3)], minor=True)
+        ax.set_xticks([0.5, 1.5], minor=True)
+        ax.set_yticks([0.5, 1.5], minor=True)
         ax.grid(which="minor", color=SURFACE, linewidth=6)
         ax.tick_params(which="both", length=0)
-        ax.set_title(title, color=INK, fontsize=24, pad=14)
+        ax.set_title(title, color=INK, fontsize=22, pad=14)
+    fig.tight_layout(rect=(0, 0.2, 1, 0.94))
+    left = min(ax.get_position().x0 for ax in axes)
+    right = max(ax.get_position().x1 for ax in axes)
+    bar = fig.add_axes((left, 0.1, right - left, 0.035))
+    scale = fig.colorbar(image, cax=bar, orientation="horizontal", ticks=[-1, 0, 1])
+    scale.ax.set_xticklabels(["\u22121\nopposite", "0\nunrelated", "+1\ntogether"], color=MUTED, fontsize=FONT_SIZE)
+    scale.ax.tick_params(length=0)
+    ends = scale.ax.get_xticklabels()
+    ends[0].set_horizontalalignment("left")
+    ends[-1].set_horizontalalignment("right")
+    scale.outline.set_visible(False)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(out, dpi=DPI, facecolor=SURFACE)
+    plt.close(fig)
+    return out
+
+
+def draw_yearly(yearly: dict[str, dict], out: Path, size_px: tuple[int, int]) -> Path:
+    """Net profit by year of the seven combinations as grouped bars, one blue per year, light to dark.
+
+    Only the bars of all three carry their value; C+B+M sits on a grey band.
+    """
+    combos = ["C", "B", "M", "C+B", "C+M", "B+M", "C+B+M"]
+    years = sorted(yearly["C+B+M"])
+    shades = ["#B4C1DE", "#7489BC", ACCENT][-len(years):]
+    labels = {"2020": "2020 (Jun–Dec)"}
+    plt.rcParams.update({"font.family": FONT, "font.size": FONT_SIZE + 1, "axes.edgecolor": GRID})
+    fig, ax = plt.subplots(figsize=(2 * size_px[0] / DPI, 2 * size_px[1] / DPI))
+    fig.patch.set_facecolor(SURFACE)
+    ax.set_facecolor(SURFACE)
+    width = 0.27
+    centres = [i + (0.4 if i >= 3 else 0) + (0.4 if i >= 6 else 0) for i in range(len(combos))]
+    ax.axvspan(centres[-1] - 0.5, centres[-1] + 0.5, color=SHADE, linewidth=0)
+    top = max(v for combo in combos for v in yearly[combo].values()) * MILLION_VND_PER_POINT
+    for k, (year, colour) in enumerate(zip(years, shades)):
+        xs = [c + (k - 1) * width for c in centres]
+        values = [yearly[combo][year] * MILLION_VND_PER_POINT for combo in combos]
+        ax.bar(xs, values, width=width, color=colour, edgecolor=SURFACE, linewidth=2, label=labels.get(year, year))
+        ax.annotate(f"{values[-1]:.0f}", xy=(xs[-1], values[-1]), xytext=(0, 6), textcoords="offset points",
+                    ha="center", va="bottom", color=INK, fontsize=FONT_SIZE - 3)
+    ax.set_xticks(centres, combos, color=INK)
+    for tick in ax.get_xticklabels()[-1:]:
+        tick.set_fontweight("bold")
+    ax.axhline(0, color=MUTED, linewidth=1)
+    ax.grid(axis="y", color=GRID, linewidth=1)
+    ax.set_axisbelow(True)
+    ax.set_ylim(0, top * 1.22)
+    ax.set_xlim(centres[0] - 0.6, centres[-1] + 0.6)
+    ax.tick_params(colors=MUTED, length=0)
+    ax.tick_params(axis="x", colors=INK)
+    for side in ("top", "right", "left"):
+        ax.spines[side].set_visible(False)
+    ax.set_ylabel("Net profit, million VND", color=MUTED)
+    ax.legend(loc="upper left", ncol=len(years), frameon=False, labelcolor=INK, handlelength=1.2, columnspacing=1.4)
     fig.tight_layout()
     out.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out, dpi=DPI, facecolor=SURFACE)
@@ -252,6 +302,8 @@ def draw_correlation(matrices: dict[str, dict], out: Path, size_px: tuple[int, i
 def main() -> int:
     for path in draw(REPORTS / "in_sample_baseline.json", FIGURES / "in_sample_equity", (1664, 640), mark_periods=False):
         print(path)
+    yearly = json.loads((REPORTS / "in_sample_baseline.json").read_text(encoding="utf-8"))["yearly_net_points"]
+    print(draw_yearly(yearly, FIGURES / "yearly_in_sample.png", (980, 520)))
     if (REPORTS / "oos2.json").exists():
         for path in draw(REPORTS / "oos2.json", FIGURES / "full_equity", (1664, 640), mark_periods=True):
             print(path)
