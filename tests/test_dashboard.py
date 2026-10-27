@@ -91,10 +91,23 @@ def test_comparison_in_percent_from_the_start():
 
 def test_intraday_position_follows_the_fills(tmp_path):
     minutes = pd.date_range("2026-10-26 09:00", "2026-10-26 11:05", freq="1min")
-    day = intraday("2026-10-26", _fills(tmp_path), pd.Series(1900.0, index=minutes))
+    day = intraday("2026-10-26", "2026-10-26", _fills(tmp_path), pd.Series(1900.0, index=minutes))
     at = dict(zip(day["t"], day["position"]))
-    assert at["09:00"] == 0 and at["09:30"] == 10 and at["10:30"] == 0 and at["11:00"] == -10
-    assert [f["side"] for f in day["fills"]] == ["BUY", "SELL", "SELL"]
+    assert at["2026-10-26 09:00"] == 0 and at["2026-10-26 09:30"] == 10
+    assert at["2026-10-26 10:30"] == 0 and at["2026-10-26 11:00"] == -10
+    assert [(f["t"], f["side"]) for f in day["fills"]] == [("2026-10-26 09:01", "BUY"), ("2026-10-26 10:00", "SELL"),
+                                                            ("2026-10-26 11:00", "SELL")]
+
+
+def test_intraday_spans_several_days_and_keeps_every_change(tmp_path):
+    sessions = [pd.date_range(f"2026-10-{d} 09:00", f"2026-10-{d} 11:05", freq="1min") for d in (19, 20, 21, 22, 23, 26)]
+    futures = pd.Series(1900.0, index=sessions[0].append(sessions[1:]))
+    week = intraday("2026-10-19", "2026-10-26", _fills(tmp_path), futures)
+    assert week["t"][0] == "2026-10-19 09:00" and week["t"][-1] == "2026-10-26 11:05"
+    assert len({t[:10] for t in week["t"]}) == 6
+    assert "2026-10-19 09:05" in week["t"] and "2026-10-19 09:02" not in week["t"]  # over 5 sessions: every 5 minutes
+    at = dict(zip(week["t"], week["position"]))
+    assert at["2026-10-26 09:01"] == 10 and at["2026-10-26 11:00"] == -10  # plus every minute the position changes
 
 
 def test_journal_reads_as_sentences(tmp_path):
@@ -120,6 +133,6 @@ def test_state_without_prices(tmp_path):
     _journal(tmp_path, RECORDS)
     (tmp_path / "health.json").write_text(json.dumps({"at": "2026-10-26T11:00:00", "fix_logged_on": True}), encoding="utf-8")
     snapshot = state(tmp_path, now=datetime(2026, 10, 26, 11, 0, 30, tzinfo=ICT))
-    assert snapshot["status"]["level"] == "ok" and snapshot["day"] == "2026-10-26"
+    assert snapshot["status"]["level"] == "ok" and snapshot["from"] == snapshot["to"] == "2026-10-26"
     assert len(snapshot["orders"]) == 3 and snapshot["realized_million"] == 4.0
     assert snapshot["charts"]["since"] is None  # the page still works without DNSE

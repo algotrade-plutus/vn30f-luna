@@ -35,6 +35,7 @@ POINT_MILLION = 0.1  # million VND per index point per contract
 FEE_MILLION = 0.02  # platform fee per contract per side
 CROSS = 0.3  # orders are limits this far through the book; fills come about this much better
 PRICE_TTL_S = 60
+DEFAULT_SESSIONS = 5  # the session chart opens on the last week
 LIVE_CONFIG = Path(__file__).resolve().parents[2] / "config" / "calibrum_live.toml"
 
 
@@ -291,36 +292,47 @@ def comparison(curve: pd.Series, futures: pd.Series, index: pd.Series, every: st
             "index": pct(index)}
 
 
-def intraday(day: str, fill_rows: list[dict], futures: pd.Series) -> dict:
-    """One session of VN30F1M closes, the position held each minute, and the fills."""
-    session = futures[futures.index.normalize() == pd.Timestamp(day)]
-    earlier = [f for f in fill_rows if f["at"][:10] < day]
+def intraday(start: str, end: str, fill_rows: list[dict], futures: pd.Series) -> dict:
+    """VN30F1M closes from the first to the last session, the position held each minute, and the fills.
+
+    Over more than five sessions the closes are kept every 5 minutes, plus every minute the position changes.
+    """
+    days = futures.index.normalize()
+    window = futures[(days >= pd.Timestamp(start)) & (days <= pd.Timestamp(end))]
+    earlier = [f for f in fill_rows if f["at"][:10] < start]
     held = earlier[-1]["position_after"] if earlier else 0
-    today = [f for f in fill_rows if f["at"][:10] == day]
-    position, i = [], 0
-    for stamp in session.index:
-        while i < len(today) and _naive(today[i]["at"]) < stamp + pd.Timedelta(minutes=1):
-            held = today[i]["position_after"]
+    inside = [f for f in fill_rows if start <= f["at"][:10] <= end]
+    step = 1 if window.index.normalize().nunique() <= 5 else 5
+    stamps, position, i = [], [], 0
+    for stamp in window.index:
+        while i < len(inside) and _naive(inside[i]["at"]) < stamp + pd.Timedelta(minutes=1):
+            held = inside[i]["position_after"]
             i += 1
-        position.append(held)
+        if stamp.minute % step == 0 or not position or held != position[-1]:
+            stamps.append(stamp)
+            position.append(held)
     return {
-        "t": [s.strftime("%H:%M") for s in session.index],
-        "price": [round(float(v), 1) for v in session.values],
+        "t": [s.strftime("%Y-%m-%d %H:%M") for s in stamps],
+        "price": [round(float(window[s]), 1) for s in stamps],
         "position": position,
-        "fills": [{"t": f["at"][11:16], "side": "BUY" if f["signed"] > 0 else "SELL", "qty": abs(f["signed"]),
-                   "price": round(f["price"], 1)} for f in today],
+        "fills": [{"t": f["at"][:16].replace("T", " "), "side": "BUY" if f["signed"] > 0 else "SELL",
+                   "qty": abs(f["signed"]), "price": round(f["price"], 1)} for f in inside],
     }
 
 
 # ----- state -----------------------------------------------------------------------------------------------------
 
-def state(state_dir: Path, day: str | None = None, now: datetime | None = None, prices: Prices | None = None) -> dict:
+def state(state_dir: Path, start: str | None = None, end: str | None = None, now: datetime | None = None,
+          prices: Prices | None = None) -> dict:
+    """Everything the page shows; the session chart, orders and journal cover the days from ``start`` to ``end``."""
     now = now or datetime.now(ICT)
     health_path = state_dir / "health.json"
     health = json.loads(health_path.read_text(encoding="utf-8")) if health_path.exists() else None
     journal = read_journal(state_dir / "journal.jsonl")
-    days = sorted({r["_at"].date().isoformat() for r in journal}, reverse=True)
-    day = day if day in days else (days[0] if days else now.date().isoformat())
+    days = sorted({r["_at"].date().isoformat() for r in journal}) or [now.date().isoformat()]
+    end = end if end in days else days[-1]
+    start = start if start in days else days[max(0, days.index(end) - DEFAULT_SESSIONS + 1)]
+    start, end = min(start, end), max(start, end)
     order_rows = orders(journal)
     fill_rows = fills(order_rows)
     nav = realized(fill_rows)
@@ -331,20 +343,21 @@ def state(state_dir: Path, day: str | None = None, now: datetime | None = None, 
         if series is not None:
             futures, index = series
             charts["since"] = comparison(account_curve(fill_rows, futures), futures, index)
-            charts["intraday"] = intraday(day, fill_rows, futures)
+            charts["intraday"] = intraday(start, end, fill_rows, futures)
     return {
         "now": now.isoformat(timespec="seconds"),
         "status": status(health, now),
         "health": health,
         "health_age_s": None if health is None else round((now - _ict(health["at"])).total_seconds()),
         "thresholds": thresholds(),
-        "days": days[:30],
-        "day": day,
+        "days": days,
+        "from": start,
+        "to": end,
         "orders": order_rows[::-1],
         "open_position": open_position(fill_rows),
         "realized": nav,
         "realized_million": None if len(nav) < 2 else round(nav[-1]["nav"] - nav[0]["nav"], 2),
-        "journal": journal_lines([r for r in journal if r["_at"].date().isoformat() == day])[::-1],
+        "journal": journal_lines([r for r in journal if start <= r["_at"].date().isoformat() <= end])[::-1],
         "charts": charts,
     }
 
@@ -380,6 +393,16 @@ tr.r-bad td{color:#c00}tr.r-warn td{color:#a06800}.muted{color:#888}
 svg text{font:11px Verdana,Arial,sans-serif;fill:#888}
 .legend{color:#555}.legend span{margin-right:14px}.legend i{display:inline-block;width:14px;height:3px;vertical-align:middle;margin-right:5px}
 select{font:inherit;margin-left:6px}
+.range{margin:2px 0 8px}.range .rl{display:flex;gap:6px;align-items:baseline;flex-wrap:wrap}
+.rtrack{position:relative;height:24px;margin:2px 8px 0}
+.rtrack:before{content:"";position:absolute;left:0;right:0;top:10px;height:4px;background:#e1e1e1;border-radius:2px}
+.rfill{position:absolute;top:10px;height:4px;background:#3b5998;border-radius:2px}
+.rtrack input{position:absolute;left:-8px;width:calc(100% + 16px);top:0;height:24px;margin:0;background:none;pointer-events:none;-webkit-appearance:none;appearance:none}
+.rtrack input::-webkit-slider-runnable-track{background:none;border:0}
+.rtrack input::-webkit-slider-thumb{pointer-events:auto;-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:#fff;border:2px solid #3b5998;cursor:grab}
+.rtrack input::-moz-range-thumb{pointer-events:auto;width:12px;height:12px;border-radius:50%;background:#fff;border:2px solid #3b5998;cursor:grab}
+.rtrack input::-moz-range-track{background:none}
+.rends{display:flex;justify-content:space-between;color:#888;font-size:11px}
 </style></head><body>
 <div id="top"><div><span id="logo">CALIBRUM</span>
 <a class="tab on" href="#overview">Overview</a><a class="tab" href="#orders">Orders</a><a class="tab" href="#journal">Journal</a>
@@ -391,7 +414,7 @@ select{font:inherit;margin-left:6px}
  <div class="box"><div class="hd">Connections</div><div class="bd" id="conn"></div></div>
 </div></div>
 <script>
-const $=id=>document.getElementById(id);let S=null,day=new URLSearchParams(location.search).get('day');
+const $=id=>document.getElementById(id),Q=new URLSearchParams(location.search);let S=null,dragging=false,from=Q.get('from')||Q.get('day'),to=Q.get('to')||Q.get('day');
 const esc=s=>String(s??'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
 const fmt=(v,d=1)=>v==null?'–':Number(v).toFixed(d);
 const sgn=(v,d=2)=>v==null?'–':(v>0?'+':v<0?'−':'')+Math.abs(v).toFixed(d);
@@ -411,24 +434,39 @@ function sinceChart(c){if(!c||c.t.length<2)return '<p class="muted">Not enough d
   g+=`<path d="${d}" fill="none" stroke="${col}" stroke-width="${w}" stroke-dasharray="${dash}"/>`});
  return '<div class="legend"><span><i style="background:#3b5998"></i>Account</span><span><i style="background:#e08a3c"></i>VN30F1M</span><span><i style="background:#888"></i>VN30 index</span></div>'+
  `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Percent change since start">${g}</svg>`}
-function todayChart(c){if(!c||c.t.length<2)return '<p class="muted">No prices for this day yet.</p>';
+function sessionChart(c){if(!c||c.t.length<2)return '<p class="muted">No prices for these days yet.</p>';
  const n=c.t.length;let lo=Math.min(...c.price),hi=Math.max(...c.price);const pad=(hi-lo)*.12||1;lo-=pad;hi+=pad;
- const slot=s=>{const m=+s.slice(0,2)*60+ +s.slice(3,5);return m<13*60?Math.min(m-540,150):150+Math.min(m-780,105)};
- const X=s=>L+Math.max(0,slot(s))/255*(W-L-8),x=i=>X(c.t[i]),y=v=>H-B-(v-lo)/(hi-lo)*(H-B-8);let g='',i0=0;
+ const days=[...new Set(c.t.map(s=>s.slice(0,10)))],D=days.length,di=Object.fromEntries(days.map((d,k)=>[d,k]));
+ const slot=s=>{const m=+s.slice(11,13)*60+ +s.slice(14,16);return Math.max(0,m<13*60?Math.min(m-540,150):150+Math.min(m-780,105))};
+ const X=s=>L+(di[s.slice(0,10)]*255+slot(s))/(D*255)*(W-L-8),x=i=>X(c.t[i]),y=v=>H-B-(v-lo)/(hi-lo)*(H-B-8);let g='',i0=0;
  for(let i=1;i<=n;i++){if(i==n||c.position[i]!=c.position[i0]){const p=c.position[i0];
   if(p)g+=`<rect x="${x(i0)}" y="8" width="${Math.max(x(Math.min(i,n-1))-x(i0),1)}" height="${H-B-8}" fill="${p>0?'#0a0':'#c00'}" opacity=".08"/>`;i0=i}}
  g+=grid(lo,hi,v=>v.toFixed(1));
- ['09:00','10:00','11:00','13:00','14:00','14:45'].forEach(h=>g+=`<line x1="${X(h)}" x2="${X(h)}" y1="8" y2="${H-B}" stroke="#f2f2f2"/><text x="${X(h)}" y="${H-6}" text-anchor="${h=='14:45'?'end':'middle'}">${h}</text>`);
- g+=`<path d="${c.price.map((v,i)=>`${i?'L':'M'}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join('')}" fill="none" stroke="#222" stroke-width="1.3"/>`;
- c.fills.forEach(f=>{const i=c.t.findIndex(s=>s>=f.t);if(i<0)return;const X=x(i),Y=y(f.price),up=f.side=='BUY';
-  g+=`<path d="M${X},${up?Y+4:Y-4} l-6,${up?11:-11} h12z" fill="${up?'#0a0':'#c00'}"><title>${f.t} ${f.side} ${f.qty} ≈ ${f.price}</title></path>`});
+ if(D==1)['09:00','10:00','11:00','13:00','14:00','14:45'].forEach(h=>{const at=X(days[0]+' '+h);
+  g+=`<line x1="${at}" x2="${at}" y1="8" y2="${H-B}" stroke="#f2f2f2"/><text x="${at}" y="${H-6}" text-anchor="${h=='14:45'?'end':'middle'}">${h}</text>`});
+ else{const every=Math.ceil(D/12);days.forEach((d,k)=>{const at=L+k/D*(W-L-8);
+  g+=`<line x1="${at}" x2="${at}" y1="8" y2="${H-B}" stroke="${k?'#e6e6e6':'#f2f2f2'}"/>`;
+  if(k%every==0)g+=`<text x="${at+3}" y="${H-6}">${d.slice(8,10)}/${d.slice(5,7)}</text>`})}
+ g+=`<path d="${c.price.map((v,i)=>`${i?'L':'M'}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join('')}" fill="none" stroke="#222" stroke-width="${D>10?1:1.3}"/>`;
+ c.fills.forEach(f=>{const i=c.t.findIndex(s=>s>=f.t);if(i<0)return;const X=x(i),Y=y(f.price),up=f.side=='BUY',z=D>10?4:6;
+  g+=`<path d="M${X},${up?Y+4:Y-4} l-${z},${up?2*z:-2*z} h${2*z}z" fill="${up?'#0a0':'#c00'}"><title>${f.t} ${f.side} ${f.qty} ≈ ${f.price}</title></path>`});
  return '<div class="legend"><span><i style="background:#222"></i>VN30F1M</span><span><i style="background:#0a0;opacity:.35"></i>holding long</span><span><i style="background:#c00;opacity:.35"></i>holding short</span><span><span class="buy">▲</span> buy <span class="sell">▼</span> sell</span></div>'+
- `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="VN30F1M during the session with the bot's trades">${g}</svg>`}
+ `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="VN30F1M from ${days[0]} to ${days[D-1]} with the bot's trades">${g}</svg>`}
 
 function orderTable(rows,withDate){return '<div class="scroll"><table><tr>'+(withDate?'<th>Date</th>':'')+'<th>Time</th><th>Side</th><th>Qty</th><th>Limit</th><th>Reason</th><th>Position before</th><th>Result</th></tr>'+
  (rows.map(o=>`<tr>${withDate?`<td>${o.at.slice(0,10)}</td>`:''}<td>${o.at.slice(11,19)}</td><td>${side(o.side=='BUY'?1:-1)}</td><td class="n">${o.qty}</td><td class="n">${o.price}</td><td>${o.reason}</td><td class="n">${o.position_before??''}</td><td>${esc(o.status)}${o.filled&&o.filled!=o.qty?` (${o.filled})`:''}</td></tr>`).join('')
  ||`<tr><td colspan="${withDate?8:7}" class="muted">No orders.</td></tr>`)+'</table></div>'}
-const daySelect=()=>`<select id="day">${S.days.map(d=>`<option ${d==S.day?'selected':''}>${d}</option>`).join('')}</select>`;
+const inRange=at=>at.slice(0,10)>=S.from&&at.slice(0,10)<=S.to,multi=()=>S.from!=S.to;
+function rangePicker(){const n=S.days.length-1;if(n<1)return `<p class="muted">${S.from}</p>`;
+ return `<div class="range"><div class="rl"><b id="rfrom"></b>→<b id="rto"></b><span class="muted" id="rcount"></span></div>
+ <div class="rtrack"><div class="rfill" id="rfill"></div><input type="range" id="ra" min="0" max="${n}" step="1" value="${S.days.indexOf(S.from)}" aria-label="First day">
+ <input type="range" id="rb" min="0" max="${n}" step="1" value="${S.days.indexOf(S.to)}" aria-label="Last day"></div>
+ <div class="rends"><span>${S.days[0]}</span><span>${S.days[n]}</span></div></div>`}
+function wireRange(){const ra=$('ra'),rb=$('rb');if(!ra)return;const n=S.days.length-1;
+ const pick=()=>{const a=+ra.value,b=+rb.value;return a<=b?[a,b]:[b,a]};
+ const show=()=>{const [a,b]=pick();$('rfrom').textContent=S.days[a];$('rto').textContent=S.days[b];
+  $('rcount').textContent=`· ${b-a+1} session${b>a?'s':''}`;$('rfill').style.left=a/n*100+'%';$('rfill').style.width=(b-a)/n*100+'%'};
+ [ra,rb].forEach(el=>{el.oninput=()=>{dragging=true;show()};el.onchange=()=>{dragging=false;const [a,b]=pick();from=S.days[a];to=S.days[b];load()}});show()}
 
 function overview(){const h=S.health||{},tg=h.targets||{},th=S.thresholds,op=S.open_position,pos=h.position;
  let html=`<h3>Position</h3><table><tr><th>Contract</th><th>Position</th><th>Entry (est.)</th><th>Free cash</th></tr>
@@ -438,13 +476,14 @@ function overview(){const h=S.health||{},tg=h.targets||{},th=S.thresholds,op=S.o
  <tr><td>Basis</td><td>${side(tg.basis)}</td><td>z = ${sgn(tg.basis_z)} <span class="muted">(trades at |z| ≥ ${th.z_entry}; ${tg.basis_bars??'–'} of ${th.window} bars)</span></td></tr>
  <tr><td>Momentum</td><td>${side(tg.momentum)}</td><td>score = ${sgn(tg.momentum_score,3)} <span class="muted">(trades at |score| ≥ ${fmt(th.theta,3)})</span></td></tr>
  <tr><td><b>Vote</b></td><td>${side(tg.vote,tg.vote?h.qty:0)}</td><td class="muted">sign of Calendar + Basis + Momentum, × ${h.qty??10} contracts</td></tr></table>`;
- html+=`<h3>Session ${daySelect()}</h3><div class="chart">${S.charts.intraday?todayChart(S.charts.intraday):`<p class="muted">${esc(S.charts.error)||'No prices.'}</p>`}</div>`;
+ html+=`<h3>Sessions <small>· drag either end to choose the days</small></h3>${rangePicker()}<div class="chart">${S.charts.intraday?sessionChart(S.charts.intraday):`<p class="muted">${esc(S.charts.error)||'No prices.'}</p>`}</div>`;
  html+=`<h3>Since start <small>· percent change, account against the market</small></h3><div class="chart">${sinceChart(S.charts.since)}</div>`;
- html+=`<h3>Orders <small>· ${S.day}</small></h3>`+orderTable(S.orders.filter(o=>o.at.startsWith(S.day)),false);
+ html+=`<h3>Orders <small>· ${multi()?S.from+' → '+S.to:S.from}</small></h3>`+orderTable(S.orders.filter(o=>inRange(o.at)),multi());
  return html}
 const ordersTab=()=>`<h3>All orders <small>· ${S.orders.length}, latest first · limit prices; fills are about 0.3 points better</small></h3>`+orderTable(S.orders,true);
-const journalTab=()=>`<h3>Journal ${daySelect()} <small>latest first</small></h3><div class="scroll"><table><tr><th>Time</th><th>What happened</th></tr>`+
- (S.journal.map(l=>`<tr class="r-${l.level}"><td>${l.at.slice(11,19)}${l.until?'–'+l.until.slice(11,19):''}</td><td>${esc(l.text)}${l.count>1?` <span class="muted">×${l.count}</span>`:''}</td></tr>`).join('')||'<tr><td colspan="2" class="muted">Nothing this day.</td></tr>')+'</table></div>';
+const when=at=>(multi()?at.slice(5,10)+' ':'')+at.slice(11,19);
+const journalTab=()=>`<h3>Journal <small>latest first</small></h3>${rangePicker()}<div class="scroll"><table><tr><th>Time</th><th>What happened</th></tr>`+
+ (S.journal.map(l=>`<tr class="r-${l.level}"><td>${when(l.at)}${l.until?'–'+l.until.slice(11,19):''}</td><td>${esc(l.text)}${l.count>1?` <span class="muted">×${l.count}</span>`:''}</td></tr>`).join('')||'<tr><td colspan="2" class="muted">Nothing on these days.</td></tr>')+'</table></div>';
 
 function sidebar(){const h=S.health||{},fa=h.feed_age_s||{},c=S.charts.since;
  const last=a=>a&&a.length?[...a].reverse().find(v=>v!=null):null;
@@ -461,8 +500,8 @@ function sidebar(){const h=S.health||{},fa=h.feed_age_s||{},c=S.charts.since;
 function render(){const tab=(location.hash||'#overview').slice(1);
  document.querySelectorAll('.tab').forEach(a=>a.classList.toggle('on',a.getAttribute('href')=='#'+tab));
  $('main').innerHTML=tab=='orders'?ordersTab():tab=='journal'?journalTab():overview();sidebar();
- $('clock').textContent=S.now.slice(0,19).replace('T',' ')+' ICT';const sel=$('day');if(sel)sel.onchange=e=>{day=e.target.value;load()}}
-async function load(){try{const r=await fetch('api/state'+(day?`?day=${day}`:''));S=await r.json();render()}catch(e){$('clock').textContent='connection lost, retrying…'}}
+ $('clock').textContent=S.now.slice(0,19).replace('T',' ')+' ICT';wireRange()}
+async function load(){if(dragging)return;try{const r=await fetch('api/state'+(from&&to?`?from=${from}&to=${to}`:''));const next=await r.json();if(!dragging){S=next;render()}}catch(e){$('clock').textContent='connection lost, retrying…'}}
 window.onhashchange=()=>S&&render();load();setInterval(load,15000);
 </script></body></html>
 """
@@ -475,8 +514,10 @@ def handler(state_dir: Path, prices: Prices) -> type[BaseHTTPRequestHandler]:
             if url.path in ("/", "/index.html"):
                 body, kind = PAGE.encode("utf-8"), "text/html; charset=utf-8"
             elif url.path == "/api/state":
-                day = parse_qs(url.query).get("day", [None])[0]
-                body = json.dumps(state(state_dir, day, prices=prices), default=str).encode("utf-8")
+                query = parse_qs(url.query)
+                day = query.get("day", [None])[0]  # an old single-day link
+                start, end = query.get("from", [day])[0], query.get("to", [day])[0]
+                body = json.dumps(state(state_dir, start, end, prices=prices), default=str).encode("utf-8")
                 kind = "application/json"
             else:
                 self.send_error(404)
