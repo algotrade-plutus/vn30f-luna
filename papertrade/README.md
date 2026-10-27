@@ -29,6 +29,7 @@ DNSE nến 1 phút (F + VN30) ─► calibrum/feed.py      chốt nến khi 2 l�
 | Việc | Lệnh |
 |---|---|
 | Xem trạng thái, health, journal | `make papertrade-status` |
+| Mở dashboard web (chỉ đọc) tại http://localhost:18080, qua tunnel SSM; Ctrl-C để đóng | `make papertrade-dashboard` |
 | Dừng lệnh mới ngay và dừng runner (vị thế giữ nguyên, HALT còn qua các ngày sau) | `make papertrade-stop` |
 | Bỏ HALT và chạy lại | `make papertrade-resume` |
 | Triển khai code đã commit | `make papertrade-deploy` |
@@ -39,6 +40,12 @@ DNSE nến 1 phút (F + VN30) ─► calibrum/feed.py      chốt nến khi 2 l�
 cài unit. Nó không khởi động runner; timer làm việc đó.
 
 Trên EC2: state ở `/var/lib/calibrum/live/` (`journal.jsonl`, `health.json`, `HALT`, log và order store SDK theo ngày).
+
+Dashboard (`calibrum/dashboard.py`, unit `calibrum-dashboard.service`) chạy cùng image với runner nhưng không có
+secret: chỉ đọc `health.json` và `journal.jsonl` (mount read-only), không gọi broker, chỉ nghe ở `127.0.0.1:8080`
+trên EC2. Trang hiện trạng thái, vị thế, tín hiệu C/B/M/vote của nến vừa đóng, độ trễ dữ liệu, dải tín hiệu trong
+phiên, giá trị tài khoản ở các lúc đứng phẳng (lúc đó tiền mặt là toàn bộ tài khoản), bảng lệnh và journal.
+Giá vào lệnh chỉ là xấp xỉ (giá LIMIT ∓ 0,3 điểm); lãi lỗ chính xác vẫn xem trên trang PaperTrade.
 
 ## Test
 

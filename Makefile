@@ -53,16 +53,19 @@ lint:
 check: test lint
 	$(UV) run python -m compileall -q src scripts tests
 
-.PHONY: papertrade-test papertrade-deploy papertrade-status papertrade-stop papertrade-resume
+.PHONY: papertrade-test papertrade-deploy papertrade-status papertrade-stop papertrade-resume papertrade-dashboard
 
 papertrade-test:
-	$(UV) run --python 3.12 pytest tests/test_paper_runtime.py tests/test_calibrum_live.py -q
+	$(UV) run --python 3.12 pytest tests/test_paper_runtime.py tests/test_calibrum_live.py tests/test_dashboard.py -q
 
 papertrade-deploy:   # build the committed runtime on the EC2 and install it; the timer starts it
 	bash papertrade/ops/push_build.sh
 
 papertrade-status:
 	bash papertrade/ops/calibrum_status.sh
+
+papertrade-dashboard:   # read-only web view at http://localhost:18080 through an SSM tunnel
+	bash papertrade/ops/calibrum_dashboard.sh
 
 papertrade-stop:     # HALT new orders and stop the runner (positions stay open)
 	bash papertrade/ops/calibrum_stop.sh

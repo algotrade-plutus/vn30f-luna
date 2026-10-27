@@ -1,0 +1,14 @@
+[Unit]
+Description=Calibrum read-only dashboard (127.0.0.1:8080; open it through an SSM port forward)
+After=docker.service network-online.target
+Requires=docker.service
+
+[Service]
+Type=simple
+ExecStart=/opt/calibrum/deploy/calibrum-dashboard.sh
+ExecStop=-/usr/bin/docker stop -t 5 calibrum-dashboard
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
