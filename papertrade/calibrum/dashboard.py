@@ -93,6 +93,8 @@ def open_position(order_rows: list[dict]) -> dict | None:
         filled = int(row["filled"] or 0)
         if not filled:
             continue
+        if row["position_before"] == 0:  # the broker's position; restarts the count after any flatten outside the runner
+            held, cost = 0, 0.0
         sign = 1 if row["side"] == "BUY" else -1
         fill = row["price"] - 0.3 * sign
         if held == 0 or (held > 0) == (sign > 0):
@@ -128,6 +130,11 @@ def status(health: dict | None, now: datetime) -> dict:
         return {"level": "warn", "text": f"Waiting: {health['blocked_by']}"}
     if not health.get("fix_logged_on"):
         return {"level": "warn", "text": "Broker link (FIX) down"}
+    index_age = (health.get("feed_age_s") or {}).get("index")
+    if in_session and index_age is not None and index_age > STALE_AFTER_S:
+        if now.time() < time(9, 20):
+            return {"level": "ok", "text": "Trading · VN30 not printed yet (it starts about 09:15)"}
+        return {"level": "warn", "text": f"VN30 bars {index_age / 60:.0f} min late: Basis and Momentum wait"}
     return {"level": "ok", "text": "Trading" if in_session else "Running, outside the session"}
 
 
@@ -173,14 +180,14 @@ PAGE = """<!doctype html>
 @media (prefers-color-scheme:dark){:root{--bg:#10151F;--card:#182030;--ink:#E8E6DF;--muted:#9AA3B2;--line:#2A3446;--flat:#3A4556}}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 -apple-system,"IBM Plex Sans",Arial,sans-serif}
 main{max-width:1180px;margin:0 auto;padding:20px 16px 48px}
-header{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;margin-bottom:16px}
+header{display:flex;flex-wrap:wrap;overflow-wrap:anywhere;gap:12px;align-items:center;justify-content:space-between;margin-bottom:16px}
 h1{font-size:22px;margin:0}.muted{color:var(--muted)}
 .pill{display:inline-flex;gap:8px;align-items:center;padding:6px 12px;border-radius:999px;font-weight:600;background:var(--card);border:1px solid var(--line)}
 .dot{width:10px;height:10px;border-radius:50%}.ok{background:var(--ok)}.warn{background:var(--warn)}.bad{background:var(--bad)}.idle{background:var(--muted)}
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px;margin-bottom:12px}
-.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+.grid>*,.card{min-width:0}.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
 .card h2{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0 0 8px}
-.big{font-size:28px;font-weight:650}.row{display:flex;justify-content:space-between;gap:8px}
+.big{font-size:28px;font-weight:650}.row{display:flex;justify-content:space-between;align-items:center;gap:8px;margin:2px 0}
 .sig{display:inline-block;min-width:44px;text-align:center;padding:2px 8px;border-radius:6px;font-weight:650;color:#fff}
 .s1{background:var(--long)}.s-1{background:var(--short)}.s0{background:var(--flat);color:var(--ink)}
 table{width:100%;border-collapse:collapse;font-size:14px}th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)}

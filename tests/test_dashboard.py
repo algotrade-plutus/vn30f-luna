@@ -49,6 +49,14 @@ def test_open_position_after_a_close_and_a_new_short(tmp_path):
     assert held == {"contracts": -10, "entry_approx": 1903.0}  # SELL limit 1902.7 fills about 0.3 better
 
 
+def test_open_position_restarts_when_the_broker_was_flat(tmp_path):
+    stray = [{"at": "2026-10-25T02:00:00+00:00", "event": "order", "id": "x", "side": "BUY", "qty": 1, "price": 1880.3,
+              "reason": "open", "position": 0, "remain_cash": 550e6, "vote": 1},
+             {"at": "2026-10-25T02:00:01+00:00", "event": "order_done", "id": "x", "status": "Filled", "filled": 1}]
+    held = open_position(orders(read_journal(_journal(tmp_path, stray + RECORDS))))  # the 1 lot was closed outside the runner
+    assert held == {"contracts": -10, "entry_approx": 1903.0}
+
+
 def test_targets_kept_only_when_the_vote_changes(tmp_path):
     events = [r["event"] for r in notable(read_journal(_journal(tmp_path, RECORDS)))]
     assert events.count("target") == 2
@@ -60,6 +68,9 @@ def test_status_flags_a_silent_runner_in_the_session(tmp_path):
     assert status({"at": "2026-10-27T09:50:00", "fix_logged_on": True}, now)["level"] == "bad"
     assert status({"at": "2026-10-27T09:59:30", "halted": True}, now)["text"].startswith("HALT")
     assert status({"at": "2026-10-26T14:59:00", "fix_logged_on": True}, datetime(2026, 10, 26, 20, 0, tzinfo=ICT))["level"] == "idle"
+    late = {"at": "2026-10-27T09:59:30", "fix_logged_on": True, "feed_age_s": {"futures": 20, "index": 900}}
+    assert status(late, now)["level"] == "warn"
+    assert status(late | {"at": "2026-10-27T09:05:00"}, datetime(2026, 10, 27, 9, 5, 30, tzinfo=ICT))["level"] == "ok"
 
 
 def test_state_reads_the_state_directory(tmp_path):
