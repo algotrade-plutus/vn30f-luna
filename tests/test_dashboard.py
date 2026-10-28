@@ -11,12 +11,16 @@ from papertrade.calibrum.dashboard import (
     account_curve,
     comparison,
     fills,
+    hold_curve,
     intraday,
     journal_lines,
     open_position,
     orders,
+    performance,
+    position_now,
     read_journal,
     realized,
+    schedule,
     state,
     status,
 )
@@ -79,14 +83,53 @@ def test_account_curve_marks_between_flat_moments(tmp_path):
     assert round(curve[pd.Timestamp("2026-10-26 11:00")], 6) == round(554.0 - 0.2 - 10 * (1904.0 - 1903.0) * 0.1, 6)
 
 
-def test_comparison_in_percent_from_the_start():
+def test_comparison_in_percent_of_the_starting_account():
     minutes = pd.date_range("2026-10-26 09:00", "2026-10-26 10:00", freq="1min")
     curve = pd.Series(500.0, index=minutes)
     curve.iloc[-1] = 505.0
-    futures = pd.Series(1900.0, index=minutes)
-    futures.iloc[-1] = 1919.0
-    out = comparison(curve, futures, futures / 2, every="30min")
-    assert out["bot"][-1] == 1.0 and out["futures"][-1] == 1.0 and out["index"][-1] == 1.0
+    index = pd.Series(1900.0, index=minutes)
+    index.iloc[-1] = 1919.0
+    out = comparison(curve, curve - 10.0, index, nav=500.0, every="30min")
+    assert out["bot"][-1] == 1.0 and out["hold"][-1] == -1.0 and out["index"][-1] == 1.0
+
+
+def test_holding_pays_the_fee_and_rolls_on_the_adjusted_closes():
+    minutes = pd.date_range("2026-11-19 14:00", periods=4, freq="1min")
+    futures = pd.DataFrame({"close": [1900.0, 1904.0, 1890.0, 1892.0], "adjusted": [1900.0, 1904.0, 1904.0, 1906.0],
+                            "contract": ["VN30F2611", "VN30F2611", "VN30F2612", "VN30F2612"]}, index=minutes)
+    hold = hold_curve(futures, minutes[0], nav=500.0, qty=10)
+    assert round(hold.iloc[0], 6) == 500.0 - 0.2  # entry fee, 10 contracts
+    assert round(hold.iloc[1], 6) == round(500.0 - 0.2 + 10 * 4.0 * 0.1, 6)
+    assert round(hold.iloc[3], 6) == round(500.0 - 0.6 + 10 * 6.0 * 0.1, 6)  # the roll pays both sides, its gap is not profit
+
+
+def test_performance_counts_closed_trades_from_flat_to_flat(tmp_path):
+    rows = _fills(tmp_path)
+    curve = pd.Series([550.0, 560.0, 553.0, 556.0])
+    out = performance(curve, realized(rows), rows)
+    assert out["trades"] == 1 and out["won"] == 1  # 550 -> 554; the short is still open
+    assert out["max_drawdown_pct"] == -1.25 and out["fees_million"] == 0.6
+
+
+def test_position_now_open_profit_today_and_buffer():
+    minutes = pd.date_range("2026-10-27 09:00", periods=3, freq="1min")
+    close = pd.Series([1900.0, 1898.0, 1896.0], index=minutes)
+    curve = pd.Series([600.0, 604.0, 606.0], index=[pd.Timestamp("2026-10-26 14:29"), *minutes[1:]])
+    now = datetime(2026, 10, 27, 9, 3, tzinfo=ICT)
+    out = position_now({"position": -10, "remain_cash_million": 75.0}, {"contracts": -10, "entry": 1903.0}, close, curve, now)
+    assert out["open_points"] == 7.0 and out["open_million"] == 7.0  # short 10 from 1903 to 1896
+    assert out["today_million"] == 6.0 and out["buffer_points"] == 75.0
+    assert position_now({"position": 0, "remain_cash_million": 550.0}, None, close, curve, now)["buffer_points"] is None
+
+
+def test_schedule_finds_the_expiry_and_the_next_calendar_legs():
+    wednesday = schedule(datetime(2026, 10, 28, 11, 0, tzinfo=ICT))
+    assert wednesday["contract"] == "VN30F2611" and wednesday["expiry"] == "2026-11-19"
+    assert wednesday["sessions_left"] == 16
+    assert wednesday["long_from"] == "2026-10-26T14:20+07:00" and wednesday["long_to"] == "2026-10-29T10:00+07:00"
+    assert wednesday["long_now"] and wednesday["monday"] == "2026-11-02"
+    friday = schedule(datetime(2026, 10, 30, 11, 0, tzinfo=ICT))
+    assert friday["long_from"] == "2026-11-02T14:20+07:00" and not friday["long_now"]
 
 
 def test_intraday_position_follows_the_fills(tmp_path):
