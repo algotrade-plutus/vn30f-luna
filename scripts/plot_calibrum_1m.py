@@ -93,13 +93,14 @@ def _label_positions(ends: dict[str, float], gap: float) -> dict[str, float]:
     return placed
 
 
-def _stats_lines(source: Path) -> dict[str, str]:
-    """Second label line per combination: Sharpe, max drawdown and trades per year."""
+def _stats_lines(source: Path, period: str | None = None) -> dict[str, str]:
+    """Second label line per combination: Sharpe, max drawdown and trades per year (of ``period`` if rows have one)."""
     combos = json.loads(source.read_text(encoding="utf-8"))["combos"]
     return {
         row["combo"]: f"Sharpe {row['sharpe']:.2f} · DD {row['mdd_pct']:.1f}% · "
         f"{row['trades'] / (row['sessions'] / TRADING_DAYS):.0f} trades/yr"
         for row in combos
+        if period is None or row["period"] == period
     }
 
 
@@ -215,8 +216,12 @@ def draw(source: Path, out_stem: Path, size_px: tuple[int, int], mark_periods: b
     return written
 
 
-def draw_period(source: Path, start: str, end: str, out_stem: Path, size_px: tuple[int, int] = (1664, 640)) -> list[Path]:
-    """Cumulative profit inside one period, every line from zero: ``<stem>_sleeves.png`` and ``<stem>_combos.png``."""
+def draw_period(source: Path, start: str, end: str, out_stem: Path, size_px: tuple[int, int] = (1664, 640),
+                stats_period: str | None = None) -> list[Path]:
+    """Cumulative profit inside one period, every line from zero: ``<stem>_sleeves.png`` and ``<stem>_combos.png``.
+
+    With ``stats_period`` the labels add that period's Sharpe, max drawdown and trades per year, as in step 4.
+    """
     payload = json.loads(source.read_text(encoding="utf-8"))["daily_net_points"]
     lo, hi = pd.Timestamp(start), pd.Timestamp(end)
     curves = {}
@@ -225,6 +230,7 @@ def draw_period(source: Path, start: str, end: str, out_stem: Path, size_px: tup
         curves[name] = daily[(daily.index >= lo) & (daily.index <= hi)].cumsum() * MILLION_VND_PER_POINT
     first, last = min(c.index[0] for c in curves.values()), max(c.index[-1] for c in curves.values())
     references = _benchmarks(first, last)
+    stats = _stats_lines(source, stats_period) if stats_period else None
     written = []
     plt.rcParams.update({"font.family": FONT, "font.size": FONT_SIZE, "axes.edgecolor": GRID})
     for (_, colours), suffix in zip(PANELS, ("sleeves", "combos")):
@@ -241,11 +247,6 @@ def draw_period(source: Path, start: str, end: str, out_stem: Path, size_px: tup
         for name, (colour, dash) in BENCHMARKS.items():
             if name in references:
                 ax.plot(references[name].index, references[name].to_numpy(), color=colour, linewidth=1.8, linestyle=dash)
-        ends = {name: series.iloc[-1] for name, series in shown.items()}
-        for name, y in _label_positions(ends, gap=0.065 * span).items():
-            ax.annotate(f"{NAMES.get(name, name)}  {ends[name]:+.0f}M", xy=(shown[name].index[-1], y), xytext=(10, 0),
-                        textcoords="offset points", va="center", annotation_clip=False,
-                        color=MUTED if name in BENCHMARKS else INK, fontweight="bold" if name == "C+B+M" else "normal")
         ax.axhline(0, color=MUTED, linewidth=1)
         ax.grid(axis="y", color=GRID, linewidth=1)
         ax.set_ylim(bottom - 0.04 * span, top + 0.06 * span)
@@ -259,10 +260,22 @@ def draw_period(source: Path, start: str, end: str, out_stem: Path, size_px: tup
         ax.tick_params(colors=MUTED, length=0)
         for side in ("top", "right", "left"):
             ax.spines[side].set_visible(False)
-        ax.set_xlim(first, last + (last - first) * 0.2)
+        room = LABEL_ROOM_PX / (size_px[0] - 75 - LABEL_ROOM_PX) if stats else 0.2
+        ax.set_xlim(first, last + (last - first) * room)
         ax.set_ylabel("Cumulative net profit, million VND", color=MUTED)
         ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda value, _: f"{value:.0f}".replace("-", "\u2212")))
+        if not stats:
+            ends = {name: series.iloc[-1] for name, series in shown.items()}
+            for name, y in _label_positions(ends, gap=0.065 * span).items():
+                ax.annotate(f"{NAMES.get(name, name)}  {ends[name]:+.0f}M", xy=(shown[name].index[-1], y),
+                            xytext=(10, 0), textcoords="offset points", va="center", annotation_clip=False,
+                            color=MUTED if name in BENCHMARKS else INK,
+                            fontweight="bold" if name == "C+B+M" else "normal")
         fig.tight_layout()
+        if stats:
+            # Leaders are placed in points, so the layout must be final first.
+            fig.canvas.draw()
+            _two_line_labels(ax, shown, colours, stats, top, span)
         out = out_stem.with_name(f"{out_stem.name}_{suffix}.png")
         out.parent.mkdir(parents=True, exist_ok=True)
         fig.savefig(out, dpi=DPI, facecolor=SURFACE)
@@ -387,7 +400,9 @@ def main() -> int:
             print(path)
         for name, (start, end) in {"in_sample": ("2020-06-01", "2022-12-31"), "valid": ("2023-01-01", "2024-12-31"),
                                    "oos1": ("2025-01-01", "2025-12-31"), "oos2": ("2026-01-01", "2026-12-31")}.items():
-            for path in draw_period(REPORTS / "oos2.json", start, end, FIGURES / f"period_equity_{name}"):
+            # Step 5 shows in-sample with the step-4 style labels; the other periods keep one-line labels.
+            for path in draw_period(REPORTS / "oos2.json", start, end, FIGURES / f"period_equity_{name}",
+                                    stats_period="in_sample" if name == "in_sample" else None):
                 print(path)
         periods = json.loads((REPORTS / "oos2.json").read_text(encoding="utf-8"))["correlation"]
         titles = {"in_sample": "In-sample", "valid": "Valid 2023–24", "oos1": "2025", "oos2": "2026"}
