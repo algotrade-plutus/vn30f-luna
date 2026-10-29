@@ -105,19 +105,22 @@ def _stats_lines(source: Path, period: str | None = None) -> dict[str, str]:
     }
 
 
-def _stacked_positions(ends: dict[str, float], gaps: dict[str, float], top: float) -> dict[str, float]:
-    """Like ``_label_positions`` with a gap per label, then pushed down so none rises above ``top``."""
+def _stacked_positions(ends: dict[str, float], halves: dict[str, float], top: float) -> dict[str, float]:
+    """Like ``_label_positions`` with a half-height per label (two neighbours sit their half-heights apart),
+    then pushed down so none rises above ``top``."""
     placed: dict[str, float] = {}
     previous = None
     for name, value in sorted(ends.items(), key=lambda item: item[1]):
-        placed[name] = value if previous is None else max(value, placed[previous] + gaps[previous])
+        placed[name] = value if previous is None else max(value, placed[previous] + halves[previous] + halves[name])
         previous = name
     ceiling = top
-    for name in sorted(placed, key=placed.get, reverse=True):
+    order = sorted(placed, key=placed.get, reverse=True)
+    for name, lower in zip(order, order[1:] + [None]):
         if placed[name] <= ceiling:
             break
         placed[name] = ceiling
-        ceiling -= gaps[name]
+        if lower is not None:
+            ceiling -= halves[name] + halves[lower]
     return placed
 
 
@@ -125,20 +128,20 @@ def _two_line_labels(ax, shown: dict[str, pd.Series], colours: dict[str, str], s
                      top: float, span: float) -> None:
     """Name and profit in bold, the stats line beneath in dark grey; benchmarks keep one line, also dark grey."""
     ends = {name: series.iloc[-1] for name, series in shown.items()}
-    gaps = {name: (0.07 if name in BENCHMARKS else 0.14) * span for name in ends}
+    halves = {name: (0.035 if name in BENCHMARKS else 0.07) * span for name in ends}
     points_per_unit = (ax.transData.transform((0, 1))[1] - ax.transData.transform((0, 0))[1]) * 72 / DPI
-    for name, y in _stacked_positions(ends, gaps, top + 0.03 * span).items():
+    for name, y in _stacked_positions(ends, halves, top + 0.03 * span).items():
         x = shown[name].index[-1]
-        if name in BENCHMARKS:
-            ax.annotate(f"{NAMES[name]}  {ends[name]:+.0f}M", xy=(x, y), xytext=(10, 0), textcoords="offset points",
-                        va="center", color=STATS_INK, annotation_clip=False)
+        if name in BENCHMARKS:  # in the same column as the others, clear of their leaders
+            ax.annotate(f"{NAMES[name]}  {ends[name]:+.0f}M".replace("-", "−"), xy=(x, y), xytext=(32, 0),
+                        textcoords="offset points", va="center", color=STATS_INK, annotation_clip=False)
             continue
         ax.annotate("", xy=(x, ends[name]), xytext=(26, (y - ends[name]) * points_per_unit + 9),
                     textcoords="offset points", annotation_clip=False,
                     arrowprops={"arrowstyle": "-", "color": colours[name], "linewidth": 2.4, "shrinkA": 0, "shrinkB": 3})
-        ax.annotate(f"{NAMES.get(name, name)}  {ends[name]:+.0f}M", xy=(x, y), xytext=(32, 9),
+        ax.annotate(f"{NAMES.get(name, name)}  {ends[name]:+.0f}M".replace("-", "−"), xy=(x, y), xytext=(32, 9),
                     textcoords="offset points", va="center", color=INK, fontweight="bold", annotation_clip=False)
-        ax.annotate(stats[name], xy=(x, y), xytext=(32, -11), textcoords="offset points", va="center",
+        ax.annotate(stats[name].replace("-", "−"), xy=(x, y), xytext=(32, -11), textcoords="offset points", va="center",
                     color=STATS_INK, fontsize=14.5, annotation_clip=False)
 
 
@@ -401,9 +404,8 @@ def main() -> int:
             print(path)
         for name, (start, end) in {"in_sample": ("2020-06-01", "2022-12-31"), "valid": ("2023-01-01", "2024-12-31"),
                                    "oos1": ("2025-01-01", "2025-12-31"), "oos2": ("2026-01-01", "2026-12-31")}.items():
-            # Step 5 shows in-sample with the step-4 style labels; the other periods keep one-line labels.
             for path in draw_period(REPORTS / "oos2.json", start, end, FIGURES / f"period_equity_{name}",
-                                    stats_period="in_sample" if name == "in_sample" else None):
+                                    stats_period=name):
                 print(path)
         periods = json.loads((REPORTS / "oos2.json").read_text(encoding="utf-8"))["correlation"]
         titles = {"in_sample": "In-sample", "valid": "Valid 2023–24", "oos1": "2025", "oos2": "2026"}
