@@ -21,6 +21,7 @@ from papertrade.calibrum.dashboard import (
     read_journal,
     realized,
     schedule,
+    StateCache,
     state,
     status,
 )
@@ -179,3 +180,25 @@ def test_state_without_prices(tmp_path):
     assert snapshot["status"]["level"] == "ok" and snapshot["from"] == snapshot["to"] == "2026-10-26"
     assert len(snapshot["orders"]) == 3 and snapshot["realized_million"] == 4.0
     assert snapshot["charts"]["since"] is None  # the page still works without DNSE
+
+
+def test_public_view_hides_order_ids_and_error_text(tmp_path):
+    _journal(tmp_path, RECORDS + [{"at": "2026-10-26T03:00:00+00:00", "event": "error", "error": "host broker.internal refused"}])
+    health = {"at": "2026-10-26T11:00:00", "fix_logged_on": True, "pending": ["a", 1.0], "last_error": "host broker.internal refused"}
+    (tmp_path / "health.json").write_text(json.dumps(health), encoding="utf-8")
+    now = datetime(2026, 10, 26, 11, 0, 30, tzinfo=ICT)
+    private = json.dumps(state(tmp_path, now=now))
+    public = json.dumps(state(tmp_path, now=now, public=True))
+    assert "broker.internal" in private and "Order a:" in private
+    assert "broker.internal" not in public and "Order a" not in public and '"a"' not in public
+    assert json.loads(public)["realized_million"] == 4.0  # the numbers are the same
+
+
+def test_state_cache_computes_once_per_range_and_ttl():
+    calls, now = [], [0.0]
+    cache = StateCache(lambda start, end: calls.append((start, end)) or b"x", ttl=15, now=lambda: now[0])
+    cache.get(None, None), cache.get(None, None), cache.get("2026-10-26", None)
+    assert calls == [(None, None), ("2026-10-26", None)]
+    now[0] = 16
+    cache.get(None, None)
+    assert calls[-1] == (None, None) and len(calls) == 3 and list(cache.saved) == [(None, None)]

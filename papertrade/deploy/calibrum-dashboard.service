@@ -1,5 +1,5 @@
 [Unit]
-Description=Calibrum read-only dashboard (127.0.0.1:8080; open it through an SSM port forward)
+Description=Calibrum read-only dashboard (127.0.0.1:8080 through an SSM port forward; public view on 127.0.0.1:8081)
 After=docker.service network-online.target
 Requires=docker.service
 

@@ -4,13 +4,14 @@ Serves one page and ``/api/state`` from the runner's state directory
 (``health.json`` and ``journal.jsonl``) and DNSE's public 1-minute bars. It
 holds no credentials and never talks to the broker. On the EC2 it listens on
 127.0.0.1 only; open it from a laptop through an SSM port forward
-(``make papertrade-dashboard``).
+(``make papertrade-dashboard``). ``--public-port`` adds the public view, without
+order ids or error text, that the Cloudflare tunnel serves.
 
 The account curve is exact whenever the bot was flat (its cash is then the
 whole account) and marked with DNSE closes in between, from fills estimated at
 the crossing limit minus 0.3 points and the platform's fee.
 
-    python -m papertrade.calibrum.dashboard --state-dir /state --port 8080
+    python -m papertrade.calibrum.dashboard --state-dir /state --port 8080 --public-port 8081
 """
 from __future__ import annotations
 
@@ -37,6 +38,7 @@ POINT_MILLION = 0.1  # million VND per index point per contract
 FEE_MILLION = 0.02  # platform fee per contract per side
 CROSS = 0.3  # orders are limits this far through the book; fills come about this much better
 PRICE_TTL_S = 60
+STATE_TTL_S = 15  # the page polls every 15 s; one computation serves every viewer of a range
 DEFAULT_SESSIONS = 5  # the session chart opens on the last week
 BASIS_WARMUP_SESSIONS = 8  # 60 thirty-minute bars on a new contract
 LIVE_CONFIG = Path(__file__).resolve().parents[2] / "config" / "calibrum_live.toml"
@@ -135,8 +137,9 @@ def realized(fill_rows: list[dict]) -> list[dict]:
     return [{"at": f["at"], "nav": round(f["flat_nav"], 2)} for f in fill_rows if f["flat_nav"] is not None]
 
 
-def _sentence(record: dict) -> str:
+def _sentence(record: dict, public: bool = False) -> str:
     event = record.get("event")
+    order = "Order" if public else f"Order {record.get('id')}"
     side = {1: "BUY", -1: "SELL", 0: "FLAT"}
     if event == "start":
         return f"Runner started: mode {record.get('mode')}, {record.get('qty')} contracts"
@@ -147,11 +150,11 @@ def _sentence(record: dict) -> str:
         return (f"Sent {record.get('side')} {record.get('qty')} at {record.get('price')} "
                 f"({record.get('reason')}, position before {record.get('position')})")
     if event == "order_done":
-        return f"Order {record.get('id')}: {record.get('status')}, filled {record.get('filled')}"
+        return f"{order}: {record.get('status')}, filled {record.get('filled')}"
     if event == "cancel":
-        return f"Cancelled order {record.get('id')}: {record.get('status')}"
+        return f"Cancelled {order.lower()}: {record.get('status')}"
     if event == "abandon":
-        return f"Gave up on order {record.get('id')} ({record.get('status')})"
+        return f"Gave up on {order.lower()} ({record.get('status')})"
     if event == "blocked":
         return f"Paused: {record.get('reason')}"
     if event == "unblocked":
@@ -159,12 +162,12 @@ def _sentence(record: dict) -> str:
     if event == "index_late":
         return "VN30 bar late"
     if event == "error":
-        return f"Error: {record.get('error')}"
+        return "Error (details on the private dashboard)" if public else f"Error: {record.get('error')}"
     details = {k: v for k, v in record.items() if k not in ("at", "event", "_at")}
     return f"{event}: {json.dumps(details, default=str)}"
 
 
-def journal_lines(records: list[dict]) -> list[dict]:
+def journal_lines(records: list[dict], public: bool = False) -> list[dict]:
     """Readable journal: targets only when the vote changes, repeated lines folded into one."""
     lines: list[dict] = []
     vote = None
@@ -174,7 +177,7 @@ def journal_lines(records: list[dict]) -> list[dict]:
             if record.get("vote") == vote:
                 continue
             vote = record.get("vote")
-        text = _sentence(record)
+        text = _sentence(record, public)
         at = record["_at"].isoformat(timespec="seconds")
         if lines and event in ("index_late", "error") and lines[-1]["event"] == event and lines[-1]["text"] == text:
             lines[-1]["count"] += 1
@@ -408,8 +411,12 @@ def intraday(start: str, end: str, fill_rows: list[dict], futures: pd.Series) ->
 # ----- state -----------------------------------------------------------------------------------------------------
 
 def state(state_dir: Path, start: str | None = None, end: str | None = None, now: datetime | None = None,
-          prices: Prices | None = None) -> dict:
-    """Everything the page shows; the session chart, orders and journal cover the days from ``start`` to ``end``."""
+          prices: Prices | None = None, public: bool = False) -> dict:
+    """Everything the page shows; the session chart, orders and journal cover the days from ``start`` to ``end``.
+
+    ``public`` is the view served to anyone through the tunnel: no order ids and no error text, which can name
+    hosts or the broker's replies.
+    """
     now = now or datetime.now(ICT)
     health_path = state_dir / "health.json"
     health = json.loads(health_path.read_text(encoding="utf-8")) if health_path.exists() else None
@@ -435,10 +442,19 @@ def state(state_dir: Path, start: str | None = None, end: str | None = None, now
             hold = hold_curve(futures, curve.index[0], nav[0]["nav"], qty) if not curve.empty else pd.Series(dtype=float)
             charts["since"] = comparison(curve, hold, index, nav[0]["nav"])
             charts["intraday"] = intraday(start, end, fill_rows, close)
+    shown_health, shown_status = health, status(health, now)
+    if public:
+        if health is not None:
+            shown_health = {**health, "pending": ["working"] if health.get("pending") else None,
+                            "last_error": "hidden" if health.get("last_error") else None}
+        if shown_status["text"].startswith("Error:"):
+            shown_status = {**shown_status, "text": "Error (details on the private dashboard)"}
+        if charts["error"]:
+            charts["error"] = "DNSE prices unavailable"
     return {
         "now": now.isoformat(timespec="seconds"),
-        "status": status(health, now),
-        "health": health,
+        "status": shown_status,
+        "health": shown_health,
         "health_age_s": None if health is None else round((now - _ict(health["at"])).total_seconds()),
         "thresholds": thresholds(),
         "days": days,
@@ -452,7 +468,7 @@ def state(state_dir: Path, start: str | None = None, end: str | None = None, now
         "basis_warmup_sessions": BASIS_WARMUP_SESSIONS,
         "realized": nav,
         "realized_million": None if len(nav) < 2 else round(nav[-1]["nav"] - nav[0]["nav"], 2),
-        "journal": journal_lines([r for r in journal if start <= r["_at"].date().isoformat() <= end])[::-1],
+        "journal": journal_lines([r for r in journal if start <= r["_at"].date().isoformat() <= end], public)[::-1],
         "charts": charts,
     }
 
@@ -613,7 +629,32 @@ window.onhashchange=()=>S&&render();load();setInterval(load,15000);
 """
 
 
-def handler(state_dir: Path, prices: Prices) -> type[BaseHTTPRequestHandler]:
+class StateCache:
+    """Each range's state body at most once per ``ttl`` seconds, one computation at a time, so viewers cannot load
+    the machine the runner trades on."""
+
+    def __init__(self, compute: Callable[[str | None, str | None], bytes], ttl: float = STATE_TTL_S,
+                 now: Callable[[], float] = clock.monotonic) -> None:
+        self.compute, self.ttl, self.now = compute, ttl, now
+        self.lock = threading.Lock()
+        self.saved: dict[tuple, tuple[float, bytes]] = {}
+
+    def get(self, start: str | None, end: str | None) -> bytes:
+        with self.lock:
+            hit = self.saved.get((start, end))
+            if hit and self.now() - hit[0] < self.ttl:
+                return hit[1]
+            body = self.compute(start, end)
+            at = self.now()
+            self.saved = {k: v for k, v in self.saved.items() if at - v[0] < self.ttl}
+            self.saved[(start, end)] = (at, body)
+            return body
+
+
+def handler(state_dir: Path, prices: Prices, public: bool = False) -> type[BaseHTTPRequestHandler]:
+    cache = StateCache(lambda start, end: json.dumps(
+        state(state_dir, start, end, prices=prices, public=public), default=str).encode("utf-8"))
+
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self) -> None:  # noqa: N802 (http.server API)
             url = urlparse(self.path)
@@ -623,7 +664,7 @@ def handler(state_dir: Path, prices: Prices) -> type[BaseHTTPRequestHandler]:
                 query = parse_qs(url.query)
                 day = query.get("day", [None])[0]  # an old single-day link
                 start, end = query.get("from", [day])[0], query.get("to", [day])[0]
-                body = json.dumps(state(state_dir, start, end, prices=prices), default=str).encode("utf-8")
+                body = cache.get(start, end)
                 kind = "application/json"
             else:
                 self.send_error(404)
@@ -646,8 +687,14 @@ def main() -> int:
     parser.add_argument("--state-dir", type=Path, default=Path("/state"))
     parser.add_argument("--host", default="0.0.0.0")  # the container port is published on 127.0.0.1 only
     parser.add_argument("--port", type=int, default=8080)
+    parser.add_argument("--public-port", type=int, help="also serve the public view (for the Cloudflare tunnel) here")
     args = parser.parse_args()
-    server = ThreadingHTTPServer((args.host, args.port), handler(args.state_dir, Prices()))
+    prices = Prices()
+    if args.public_port:
+        public = ThreadingHTTPServer((args.host, args.public_port), handler(args.state_dir, prices, public=True))
+        threading.Thread(target=public.serve_forever, daemon=True).start()
+        print(f"public view on {args.host}:{args.public_port}", flush=True)
+    server = ThreadingHTTPServer((args.host, args.port), handler(args.state_dir, prices))
     print(f"dashboard on {args.host}:{args.port}, state {args.state_dir}", flush=True)
     server.serve_forever()
     return 0

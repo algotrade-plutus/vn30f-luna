@@ -7,8 +7,8 @@ src="$(cd "$(dirname "$0")" && pwd)"
 docker image inspect "$image" >/dev/null
 
 install -d -m 750 /opt/calibrum/deploy /etc/calibrum
-install -m 750 "$src/calibrum-run.sh" "$src/render-env.sh" "$src/calibrum-dashboard.sh" /opt/calibrum/deploy/
-install -m 644 "$src/calibrum.service" "$src/calibrum.timer" "$src/calibrum-dashboard.service" /etc/systemd/system/
+install -m 750 "$src/calibrum-run.sh" "$src/render-env.sh" "$src/calibrum-dashboard.sh" "$src/calibrum-tunnel.sh" /opt/calibrum/deploy/
+install -m 644 "$src/calibrum.service" "$src/calibrum.timer" "$src/calibrum-dashboard.service" "$src/calibrum-tunnel.service" /etc/systemd/system/
 install -d -o 10001 -g 10001 -m 750 /var/lib/calibrum/live
 # Operating knobs survive redeploys; edit this file to change them.
 [ -f /etc/calibrum/calibrum.env ] || printf 'CALIBRUM_MODE=active\nCALIBRUM_QTY=10\nCALIBRUM_ALLOW_ORDERS=true\n' > /etc/calibrum/calibrum.env
@@ -25,4 +25,6 @@ if systemctl list-unit-files algotrade-dashboard.service >/dev/null 2>&1; then
 fi
 systemctl enable calibrum-dashboard.service >/dev/null
 systemctl restart calibrum-dashboard.service   # picks up the new image; the runner is not touched
+systemctl enable calibrum-tunnel.service >/dev/null
+systemctl restart calibrum-tunnel.service      # exits quietly while the tunnel credentials are not in SSM
 echo "installed $image (previous ${previous:-none}); $(systemctl list-timers calibrum.timer --no-legend | awk '{print "next start", $1, $2, $3}')"

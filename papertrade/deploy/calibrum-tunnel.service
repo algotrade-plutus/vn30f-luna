@@ -1,0 +1,15 @@
+[Unit]
+Description=Calibrum public dashboard through a Cloudflare tunnel (calibrum.binarysearch.id.vn -> 127.0.0.1:8081)
+After=docker.service network-online.target calibrum-dashboard.service
+Requires=docker.service
+
+[Service]
+Type=simple
+Environment=AWS_REGION=ap-southeast-1
+ExecStart=/opt/calibrum/deploy/calibrum-tunnel.sh
+ExecStop=-/usr/bin/docker stop -t 5 calibrum-tunnel
+Restart=on-failure
+RestartSec=30
+
+[Install]
+WantedBy=multi-user.target

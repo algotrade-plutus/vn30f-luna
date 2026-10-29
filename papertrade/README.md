@@ -47,6 +47,12 @@ trên EC2. Trang hiện trạng thái, vị thế, tín hiệu C/B/M/vote của 
 phiên, giá trị tài khoản ở các lúc đứng phẳng (lúc đó tiền mặt là toàn bộ tài khoản), bảng lệnh và journal.
 Giá vào lệnh chỉ là xấp xỉ (giá LIMIT ∓ 0,3 điểm); lãi lỗ chính xác vẫn xem trên trang PaperTrade.
 
+Bản công khai ở https://calibrum.binarysearch.id.vn: cùng trang, nhưng không có mã lệnh và nội dung lỗi. Dashboard
+phục vụ bản này ở `127.0.0.1:8081`; `calibrum-tunnel.service` chạy connector `cloudflared` (tunnel `calibrum`), chỉ
+gọi ra Cloudflare, không mở cổng nào trên EC2. Credentials của tunnel nằm ở SSM `/calibrum/cloudflared-credentials`
+(SecureString); thiếu parameter đó thì unit thoát êm và dashboard chỉ còn bản riêng. Container dashboard bị giới hạn
+0,5 CPU và 640 MB, và mỗi khoảng ngày chỉ tính lại tối đa một lần mỗi 15 giây, để người xem không làm chậm runner.
+
 ## Test
 
 `make papertrade-test`: planner, feed, runner (giả lập broker) và parity giữa target live với backtest (cần cache DNSE).
