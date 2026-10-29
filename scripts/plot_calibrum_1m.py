@@ -271,19 +271,20 @@ def draw_period(source: Path, start: str, end: str, out_stem: Path, size_px: tup
     return written
 
 
-def draw_correlation(matrices: dict[str, dict], out: Path, size_px: tuple[int, int]) -> Path:
+def draw_correlation(matrices: dict[str, dict], out: Path, size_px: tuple[int, int], scale_bar: bool = True) -> Path:
     """Daily-profit correlation of the three sleeves as a full matrix, one per title, on a fixed -1..+1 scale.
 
     Diverging blue (negative) to orange (positive) through a neutral grey at zero;
     every cell carries its value, and the colour scale under the matrices reads by itself.
-    Text shrinks with the figure below 620 px wide; an empty title leaves the heading to the slide.
+    Text shrinks with the figure below 620 px wide; an empty title leaves the heading to the slide,
+    and ``scale_bar=False`` leaves the scale to it too.
     """
     from matplotlib.colors import LinearSegmentedColormap
 
     cmap = LinearSegmentedColormap.from_list("diverging", [ACCENT, SHADE, ORANGE])
     names = ["C", "B", "M"]
     labels = [NAMES[n] for n in names]
-    shrink = min(1.0, size_px[0] / (620 * len(matrices)))
+    shrink = max(0.8, min(1.0, size_px[0] / (620 * len(matrices))))
     plt.rcParams.update({"font.family": FONT, "font.size": (FONT_SIZE + 1) * shrink})
     fig, axes = plt.subplots(1, len(matrices), figsize=(2 * size_px[0] / DPI, 2 * size_px[1] / DPI))
     axes = [axes] if len(matrices) == 1 else list(axes)
@@ -305,7 +306,12 @@ def draw_correlation(matrices: dict[str, dict], out: Path, size_px: tuple[int, i
         ax.tick_params(which="both", length=0)
         if title:
             ax.set_title(title, color=INK, fontsize=22, pad=14)
-    fig.tight_layout(rect=(0, 0.2, 1, 0.94 if any(matrices) else 1))
+    fig.tight_layout(rect=(0, 0.2 if scale_bar else 0, 1, 0.94 if any(matrices) else 1))
+    if not scale_bar:
+        out.parent.mkdir(parents=True, exist_ok=True)
+        fig.savefig(out, dpi=DPI, facecolor=SURFACE)
+        plt.close(fig)
+        return out
     left = min(ax.get_position().x0 for ax in axes)
     right = max(ax.get_position().x1 for ax in axes)
     bar = fig.add_axes((left, 0.1, right - left, 0.035))
@@ -371,7 +377,7 @@ def main() -> int:
                      with_stats=True):
         print(path)
     # Step 4 shows the sleeves beside their correlation matrix, so that panel is also drawn narrower.
-    for path in draw(REPORTS / "in_sample_baseline.json", FIGURES / "in_sample_equity_beside", (1140, 640),
+    for path in draw(REPORTS / "in_sample_baseline.json", FIGURES / "in_sample_equity_beside", (1240, 640),
                      mark_periods=False, with_stats=True, only="sleeves"):
         print(path)
     yearly = json.loads((REPORTS / "in_sample_baseline.json").read_text(encoding="utf-8"))["yearly_net_points"]
@@ -388,7 +394,7 @@ def main() -> int:
         print(draw_correlation({titles[k]: periods[k] for k in titles}, FIGURES / "correlation_periods.png", (1664, 520)))
     baseline = json.loads((REPORTS / "in_sample_baseline.json").read_text(encoding="utf-8"))["correlation"]
     print(draw_correlation({"In-sample, starting values": baseline}, FIGURES / "correlation_in_sample.png", (620, 600)))
-    print(draw_correlation({"": baseline}, FIGURES / "correlation_in_sample_beside.png", (500, 560)))
+    print(draw_correlation({"": baseline}, FIGURES / "correlation_in_sample_beside.png", (400, 400), scale_bar=False))
     return 0
 
 
