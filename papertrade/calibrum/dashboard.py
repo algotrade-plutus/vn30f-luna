@@ -41,6 +41,10 @@ PRICE_TTL_S = 60
 STATE_TTL_S = 15  # the page polls every 15 s; one computation serves every viewer of a range
 DEFAULT_SESSIONS = 5  # the session chart opens on the last week
 BASIS_WARMUP_SESSIONS = 8  # 60 thirty-minute bars on a new contract
+STOP_POINTS = {"basis": 14.0, "momentum": 10.0}  # the sleeves' stops (src/lab/calibrum_1m), checked every minute
+MOMENTUM_MAX_BARS = 8  # Momentum is out after at most 8 thirty-minute bars
+SLEEVES = ("calendar", "basis", "momentum")
+QUIET_AFTER_OPEN_S = 180  # a pause this soon after 09:00 or 13:00 is the first bar of the half-session arriving
 LIVE_CONFIG = Path(__file__).resolve().parents[2] / "config" / "calibrum_live.toml"
 
 
@@ -137,6 +141,105 @@ def realized(fill_rows: list[dict]) -> list[dict]:
     return [{"at": f["at"], "nav": round(f["flat_nav"], 2)} for f in fill_rows if f["flat_nav"] is not None]
 
 
+def record_start(journal: list[dict]) -> str | None:
+    """When the results start: the first runner start with the contract count in use now.
+
+    A start with another count before it (the 1-contract trial on 23/10/2026) stays in the order list but not in
+    the results.
+    """
+    start, qty = None, None
+    for record in journal:
+        if record.get("event") == "start" and record.get("qty") != qty:
+            start, qty = record["_at"].isoformat(timespec="seconds"), record.get("qty")
+    return start
+
+
+def trades(fill_rows: list[dict], flat_cash: float | None = None) -> list[dict]:
+    """Round trips from flat to flat, oldest first.
+
+    Prices are the fill estimates. The result is exact, the broker's cash at the next flat moment against the cash
+    at the opening one (``flat_cash`` is the cash now, when the bot is flat); without both it is estimated from the
+    prices and the fee. The runner closes and opens in separate orders, so no fill crosses zero.
+    """
+    out: list[dict] = []
+    for fill in fill_rows:
+        side, qty = (1 if fill["signed"] > 0 else -1), abs(fill["signed"])
+        if fill["position_after"] - fill["signed"] == 0 or not out:
+            if out and fill["flat_nav"] is not None and out[-1]["start_nav"] is not None:
+                out[-1]["million"] = round(fill["flat_nav"] - out[-1]["start_nav"], 2)
+            out.append({"side": side, "qty": 0, "entry_at": fill["at"], "entry": 0.0, "exit_at": None, "exit": None,
+                        "start_nav": fill["flat_nav"], "million": None, "fees": 0.0, "_out": 0})
+        trade = out[-1]
+        trade["fees"] += qty * FEE_MILLION
+        if side == trade["side"]:
+            trade["entry"] = (trade["entry"] * trade["qty"] + fill["price"] * qty) / (trade["qty"] + qty)
+            trade["qty"] += qty
+        else:
+            done = trade["_out"]
+            trade["exit"] = ((trade["exit"] or 0.0) * done + fill["price"] * qty) / (done + qty)
+            trade["_out"] = done + qty
+            if fill["position_after"] == 0:
+                trade["exit_at"] = fill["at"]
+    if out and out[-1]["exit_at"] and flat_cash is not None and out[-1]["start_nav"] is not None:
+        out[-1]["million"] = round(flat_cash - out[-1]["start_nav"], 2)
+    rows = []
+    for trade in out:
+        points = None if trade["exit"] is None else (trade["exit"] - trade["entry"]) * trade["side"]
+        million, exact = trade["million"], trade["million"] is not None
+        if million is None and trade["exit_at"]:
+            million = round(points * trade["qty"] * POINT_MILLION - trade["fees"], 2)
+        rows.append({"side": trade["side"], "qty": trade["qty"], "entry_at": trade["entry_at"],
+                     "entry": round(trade["entry"], 1), "exit_at": trade["exit_at"],
+                     "exit": None if trade["exit"] is None else round(trade["exit"], 1),
+                     "points": None if points is None else round(points, 1), "million": million, "exact": exact,
+                     "fees_million": round(trade["fees"], 2)})
+    return rows
+
+
+def targets_of(journal: list[dict]) -> list[dict]:
+    return [r for r in journal if r.get("event") == "target"]
+
+
+def opened_by(target_rows: list[dict], at: str, side: int) -> list[str]:
+    """The sleeves on the trade's side in the last target before ``at``."""
+    moment = _ict(at)
+    before = [r for r in target_rows if r["_at"] <= moment]
+    return [name for name in SLEEVES if before and before[-1].get(name) == side]
+
+
+def sleeves(target_rows: list[dict], close: pd.Series | None) -> dict:
+    """Each sleeve's side, since when (the minute that decided it), and for Basis and Momentum the price at that
+    minute and the stop: the sleeve's own entry, not the account's."""
+    out = {name: {"side": 0, "since": None, "entry": None, "stop": None} for name in SLEEVES}
+    for record in target_rows:
+        for name in SLEEVES:
+            side = record.get(name) or 0
+            if side != out[name]["side"]:
+                out[name] = {"side": side, "since": record.get("last_minute") or record["_at"].strftime("%Y-%m-%d %H:%M"),
+                             "entry": None, "stop": None}
+    for name, sleeve in out.items():
+        if not sleeve["side"] or sleeve["since"] is None or close is None or close.empty:
+            continue
+        price = close[close.index <= pd.Timestamp(sleeve["since"])]
+        if price.empty:
+            continue
+        sleeve["entry"] = round(float(price.iloc[-1]), 1)
+        if name in STOP_POINTS:
+            sleeve["stop"] = round(sleeve["entry"] - sleeve["side"] * STOP_POINTS[name], 1)
+    return out
+
+
+def sleeve_changes(target_rows: list[dict]) -> list[tuple[pd.Timestamp, dict]]:
+    """Minutes (naive ICT, when the bot knew) at which any sleeve's side changed, with all three sides."""
+    out, last = [], None
+    for record in target_rows:
+        sides = {name: record.get(name) or 0 for name in SLEEVES}
+        if sides != last:
+            out.append((pd.Timestamp(record["_at"].replace(tzinfo=None)).floor("min"), sides))
+            last = sides
+    return out
+
+
 def _sentence(record: dict, public: bool = False) -> str:
     event = record.get("event")
     order = "Order" if public else f"Order {record.get('id')}"
@@ -144,8 +247,8 @@ def _sentence(record: dict, public: bool = False) -> str:
     if event == "start":
         return f"Runner started: mode {record.get('mode')}, {record.get('qty')} contracts"
     if event == "target":
-        return (f"Vote now {side.get(record.get('vote'), '?')} (Calendar {record.get('calendar', 0):+d}, "
-                f"Basis {record.get('basis', 0):+d}, Momentum {record.get('momentum', 0):+d})")
+        return (f"Calendar {record.get('calendar', 0):+d}, Basis {record.get('basis', 0):+d}, "
+                f"Momentum {record.get('momentum', 0):+d} → vote {side.get(record.get('vote'), '?')}")
     if event == "order":
         return (f"Sent {record.get('side')} {record.get('qty')} at {record.get('price')} "
                 f"({record.get('reason')}, position before {record.get('position')})")
@@ -167,23 +270,42 @@ def _sentence(record: dict, public: bool = False) -> str:
     return f"{event}: {json.dumps(details, default=str)}"
 
 
+def _after_open(moment: datetime, seconds: float) -> bool:
+    return any(timedelta(0) <= moment - datetime.combine(moment.date(), opening, moment.tzinfo) <= timedelta(seconds=seconds)
+               for opening in (SESSION_OPEN, time(13, 0)))
+
+
 def journal_lines(records: list[dict], public: bool = False) -> list[dict]:
-    """Readable journal: targets only when the vote changes, repeated lines folded into one."""
+    """Readable journal: targets only when a sleeve changes, repeated lines folded into one.
+
+    What happens every session is kept but quiet: the pause until the first futures bar after 09:00 and 13:00, and
+    VN30 bars late before the index starts printing at about 09:15.
+    """
     lines: list[dict] = []
-    vote = None
+    sides = None
     for record in records:
         event = record.get("event")
         if event == "target":
-            if record.get("vote") == vote:
+            now = tuple(record.get(name) for name in SLEEVES)
+            if now == sides:
                 continue
-            vote = record.get("vote")
+            sides = now
         text = _sentence(record, public)
         at = record["_at"].isoformat(timespec="seconds")
-        if lines and event in ("index_late", "error") and lines[-1]["event"] == event and lines[-1]["text"] == text:
-            lines[-1]["count"] += 1
-            lines[-1]["until"] = at
-            continue
         level = "bad" if event == "error" else "warn" if event in ("blocked", "index_late", "abandon") else ""
+        if event == "blocked" and _after_open(record["_at"], 60):
+            level = "quiet"
+        if event == "index_late" and record["_at"].time() < time(9, 20):
+            level, text = "quiet", "VN30 bar late (the index starts printing at about 09:15)"
+        last = lines[-1] if lines else None
+        if last and event in ("index_late", "error") and last["event"] == event and last["text"] == text:
+            last["count"] += 1
+            last["until"] = at
+            continue
+        if (event == "unblocked" and last and last["event"] == "blocked" and last["level"] == "quiet"
+                and (record["_at"] - _ict(last["at"])).total_seconds() <= QUIET_AFTER_OPEN_S):
+            last["until"], last["text"] = at, "Waited for the first futures bar of the half-session"
+            continue
         lines.append({"at": at, "until": None, "event": event, "text": text, "count": 1, "level": level})
     return lines
 
@@ -318,13 +440,26 @@ def comparison(curve: pd.Series, hold: pd.Series, index: pd.Series, nav: float, 
             "index": pct(index)}
 
 
-def performance(curve: pd.Series, nav_rows: list[dict], fill_rows: list[dict]) -> dict:
-    """Closed trades from one flat moment to the next (exact: the broker's cash), the deepest drawdown of the
-    marked curve, and the fees paid."""
-    trades = [later["nav"] - earlier["nav"] for earlier, later in zip(nav_rows, nav_rows[1:])]
+def performance(curve: pd.Series, trade_rows: list[dict], fill_rows: list[dict]) -> dict:
+    """Closed trades from one flat moment to the next, the deepest drawdown of the marked curve, and the fees paid."""
+    closed = [t["million"] for t in trade_rows if t["exit_at"] and t["million"] is not None]
     drawdown = None if curve.empty else round(float((curve / curve.cummax() - 1).min() * 100), 2)
-    return {"trades": len(trades), "won": sum(t > 0 for t in trades), "max_drawdown_pct": drawdown,
+    return {"trades": len(closed), "won": sum(t > 0 for t in closed), "max_drawdown_pct": drawdown,
             "fees_million": round(sum(abs(f["signed"]) for f in fill_rows) * FEE_MILLION, 2)}
+
+
+def account(nav_rows: list[dict], trade_rows: list[dict], curve: pd.Series | None, health: dict | None) -> dict:
+    """Start, now and the profit split into closed trades (exact) and the open position (marked at DNSE closes):
+    the two parts add up to the total."""
+    if not nav_rows:
+        return {"start": None, "now": None, "total": None, "closed": None, "open": None}
+    start = nav_rows[0]["nav"]
+    flat = health is not None and not health.get("position") and health.get("remain_cash_million") is not None
+    now = health["remain_cash_million"] if flat else None if curve is None or curve.empty else float(curve.iloc[-1])
+    closed = round(sum(t["million"] for t in trade_rows if t["exit_at"] and t["million"] is not None), 2)
+    total = None if now is None else round(now - start, 2)
+    return {"start": round(start, 2), "now": None if now is None else round(now, 2), "total": total, "closed": closed,
+            "open": None if total is None else round(total - closed, 2)}
 
 
 def position_now(health: dict | None, entry: dict | None, close: pd.Series | None, curve: pd.Series | None,
@@ -380,29 +515,43 @@ def schedule(now: datetime) -> dict:
             "long_to": exit_at.isoformat(timespec="minutes"), "long_now": entry_at <= now}
 
 
-def intraday(start: str, end: str, fill_rows: list[dict], futures: pd.Series) -> dict:
-    """VN30F1M closes from the first to the last session, the position held each minute, and the fills.
+def intraday(start: str, end: str, fill_rows: list[dict], futures: pd.Series,
+             changes: list[tuple[pd.Timestamp, dict]] = ()) -> dict:
+    """VN30F1M closes from the first to the last session, the position and each sleeve's side each minute, and the
+    fills.
 
-    Over more than five sessions the closes are kept every 5 minutes, plus every minute the position changes.
+    Over more than five sessions the closes are kept every 5 minutes, plus every minute the position or a sleeve
+    changes.
     """
     days = futures.index.normalize()
     window = futures[(days >= pd.Timestamp(start)) & (days <= pd.Timestamp(end))]
     earlier = [f for f in fill_rows if f["at"][:10] < start]
     held = earlier[-1]["position_after"] if earlier else 0
     inside = [f for f in fill_rows if start <= f["at"][:10] <= end]
+    first = pd.Timestamp(start)
+    before = [sides for at, sides in changes if at < first]
+    sides = before[-1] if before else dict.fromkeys(SLEEVES, 0)
+    later = [(at, s) for at, s in changes if at >= first]
     step = 1 if window.index.normalize().nunique() <= 5 else 5
-    stamps, position, i = [], [], 0
+    stamps, position, lanes, i, j = [], [], {name: [] for name in SLEEVES}, 0, 0
     for stamp in window.index:
         while i < len(inside) and _naive(inside[i]["at"]) < stamp + pd.Timedelta(minutes=1):
             held = inside[i]["position_after"]
             i += 1
-        if stamp.minute % step == 0 or not position or held != position[-1]:
+        while j < len(later) and later[j][0] <= stamp:
+            sides = later[j][1]
+            j += 1
+        changed = position and (held != position[-1] or any(sides[n] != lanes[n][-1] for n in SLEEVES))
+        if stamp.minute % step == 0 or not position or changed:
             stamps.append(stamp)
             position.append(held)
+            for name in SLEEVES:
+                lanes[name].append(sides[name])
     return {
         "t": [s.strftime("%Y-%m-%d %H:%M") for s in stamps],
         "price": [round(float(window[s]), 1) for s in stamps],
         "position": position,
+        "sleeves": lanes if changes else None,
         "fills": [{"t": f["at"][:16].replace("T", " "), "side": "BUY" if f["signed"] > 0 else "SELL",
                    "qty": abs(f["signed"]), "price": round(f["price"], 1)} for f in inside],
     }
@@ -427,21 +576,31 @@ def state(state_dir: Path, start: str | None = None, end: str | None = None, now
     start, end = min(start, end), max(start, end)
     order_rows = orders(journal)
     fill_rows = fills(order_rows)
-    nav = realized(fill_rows)
+    record_from = record_start(journal)
+    for row in order_rows:
+        row["before_record"] = record_from is not None and row["at"] < record_from
+    counted = [f for f in fill_rows if record_from is None or f["at"] >= record_from]
+    nav = realized(counted)
+    flat_cash = (health or {}).get("remain_cash_million") if health and not health.get("position") else None
+    trade_rows = trades(counted, flat_cash)
+    target_rows = targets_of(journal)
+    for trade in trade_rows:
+        trade["opened_by"] = opened_by(target_rows, trade["entry_at"], trade["side"])
     charts: dict[str, Any] = {"error": None, "intraday": None, "since": None}
     entry = open_position(fill_rows)
     curve = close = None
-    if prices is not None and nav:
-        series = prices.get(nav[0]["at"][:10], now)
+    if prices is not None and journal:
+        series = prices.get(days[0], now)
         charts["error"] = prices.error
         if series is not None:
             futures, index = series
             close = futures["close"]
-            curve = account_curve(fill_rows, close)
-            qty = (health or {}).get("qty") or 10
-            hold = hold_curve(futures, curve.index[0], nav[0]["nav"], qty) if not curve.empty else pd.Series(dtype=float)
-            charts["since"] = comparison(curve, hold, index, nav[0]["nav"])
-            charts["intraday"] = intraday(start, end, fill_rows, close)
+            charts["intraday"] = intraday(start, end, fill_rows, close, sleeve_changes(target_rows))
+            if nav:
+                curve = account_curve(counted, close)
+                qty = (health or {}).get("qty") or 10
+                hold = hold_curve(futures, curve.index[0], nav[0]["nav"], qty) if not curve.empty else pd.Series(dtype=float)
+                charts["since"] = comparison(curve, hold, index, nav[0]["nav"])
     shown_health, shown_status = health, status(health, now)
     if public:
         if health is not None:
@@ -463,11 +622,16 @@ def state(state_dir: Path, start: str | None = None, end: str | None = None, now
         "orders": order_rows[::-1],
         "open_position": entry,
         "now_position": position_now(health, entry, close, curve, now),
-        "performance": performance(curve if curve is not None else pd.Series(dtype=float), nav, fill_rows),
+        "sleeves": sleeves(target_rows, close),
+        "trades": trade_rows[::-1],
+        "performance": performance(curve if curve is not None else pd.Series(dtype=float), trade_rows, counted),
+        "account": account(nav, trade_rows, curve, health),
+        "record_from": record_from,
         "schedule": schedule(now),
         "basis_warmup_sessions": BASIS_WARMUP_SESSIONS,
+        "stops": STOP_POINTS,
+        "momentum_max_bars": MOMENTUM_MAX_BARS,
         "realized": nav,
-        "realized_million": None if len(nav) < 2 else round(nav[-1]["nav"] - nav[0]["nav"], 2),
         "journal": journal_lines([r for r in journal if start <= r["_at"].date().isoformat() <= end], public)[::-1],
         "charts": charts,
     }
@@ -500,7 +664,8 @@ td.n{text-align:right;font-variant-numeric:tabular-nums}
 .buy{color:#0a0;font-weight:bold}.sell{color:#c00;font-weight:bold}.flat{color:#888}
 .dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px}
 .ok{background:#0a0}.warn{background:#e6a100}.bad{background:#c00}.idle{background:#aaa}
-tr.r-bad td{color:#c00}tr.r-warn td{color:#a06800}.muted{color:#888}
+tr.r-bad td{color:#c00}tr.r-warn td{color:#a06800}tr.r-quiet td,tr.r-quiet td span{color:#aaa}.muted{color:#888}
+.box .bd div.sub{padding-left:10px;color:#555}.box .bd p{margin:6px 0 0}
 .scroll{overflow-x:auto}.chart{border:1px solid #e1e1e1;padding:6px 8px}
 svg text{font:11px Verdana,Arial,sans-serif;fill:#888}
 .legend{color:#555}.legend span{margin-right:14px}.legend i{display:inline-block;width:14px;height:3px;vertical-align:middle;margin-right:5px}
@@ -524,6 +689,7 @@ select{font:inherit;margin-left:6px}
  <div class="box"><div class="hd">Bot</div><div class="bd" id="bot"></div></div>
  <div class="box"><div class="hd">Since start</div><div class="bd" id="since"></div></div>
  <div class="box"><div class="hd">Connections</div><div class="bd" id="conn"></div></div>
+ <div class="box"><div class="hd">About</div><div class="bd" id="about"></div></div>
 </div></div>
 <script>
 const $=id=>document.getElementById(id),Q=new URLSearchParams(location.search);let S=null,dragging=false,from=Q.get('from')||Q.get('day'),to=Q.get('to')||Q.get('day');
@@ -541,8 +707,9 @@ function grid(lo,hi,fy){let g='';for(let k=0;k<=4;k++){const v=lo+(hi-lo)*k/4,y=
 function sinceChart(c){if(!c||c.t.length<2)return '<p class="muted">Not enough data yet.</p>';
  const n=c.t.length,all=[...c.bot,...c.hold,...c.index].filter(v=>v!=null);let lo=Math.min(0,...all),hi=Math.max(0,...all);
  const pad=(hi-lo)*.08||.5;lo-=pad;hi+=pad;const x=i=>L+i/(n-1)*(W-L-8),y=v=>H-B-(v-lo)/(hi-lo)*(H-B-8);
- let g=grid(lo,hi,v=>v.toFixed(1)+'%')+`<line x1="${L}" x2="${W-6}" y1="${y(0)}" y2="${y(0)}" stroke="#bbb"/>`;let last='';
- c.t.forEach((s,i)=>{const d=s.slice(8,10)+'/'+s.slice(5,7);if(d!=last){g+=`<line x1="${x(i)}" x2="${x(i)}" y1="8" y2="${H-B}" stroke="#f2f2f2"/><text x="${x(i)+3}" y="${H-6}">${d}</text>`;last=d}});
+ let g=grid(lo,hi,v=>v.toFixed(1)+'%')+`<line x1="${L}" x2="${W-6}" y1="${y(0)}" y2="${y(0)}" stroke="#bbb"/>`;let last='',lastX=-99;
+ c.t.forEach((s,i)=>{const d=s.slice(8,10)+'/'+s.slice(5,7);if(d!=last){g+=`<line x1="${x(i)}" x2="${x(i)}" y1="8" y2="${H-B}" stroke="#f2f2f2"/>`;
+  if(x(i)-lastX>44){g+=`<text x="${x(i)+3}" y="${H-6}">${d}</text>`;lastX=x(i)}last=d}});
  [[c.hold,'#e08a3c',1.4,''],[c.index,'#888',1.4,'4 3'],[c.bot,'#3b5998',2.4,'']].forEach(([v,col,w,dash])=>{let d='',pen=false;
   v.forEach((p,i)=>{if(p==null){pen=false;return}d+=`${pen?'L':'M'}${x(i).toFixed(1)},${y(p).toFixed(1)}`;pen=true});
   g+=`<path d="${d}" fill="none" stroke="${col}" stroke-width="${w}" stroke-dasharray="${dash}"/>`});
@@ -564,12 +731,22 @@ function sessionChart(c){if(!c||c.t.length<2)return '<p class="muted">No prices 
  g+=`<path d="${c.price.map((v,i)=>`${i?'L':'M'}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join('')}" fill="none" stroke="#222" stroke-width="${D>10?1:1.3}"/>`;
  c.fills.forEach(f=>{const i=c.t.findIndex(s=>s>=f.t);if(i<0)return;const X=x(i),Y=y(f.price),up=f.side=='BUY',z=D>10?4:6;
   g+=`<path d="M${X},${up?Y+4:Y-4} l-${z},${up?2*z:-2*z} h${2*z}z" fill="${up?'#0a0':'#c00'}"><title>${f.t} ${f.side} ${f.qty} ≈ ${f.price}</title></path>`});
+ let lanes='';if(c.sleeves){const rows=[['calendar','Cal.'],['basis','Basis'],['momentum','Mom.']],h=11,gap=5;let s='';
+  rows.forEach(([k,lab],r)=>{const v=c.sleeves[k],top=r*(h+gap)+2;s+=`<rect x="${L}" y="${top}" width="${W-L-8}" height="${h}" fill="#f4f4f4"/><text x="${L-6}" y="${top+h-1}" text-anchor="end">${lab}</text>`;
+   let a=0;for(let i=1;i<=n;i++){if(i==n||v[i]!=v[a]){if(v[a])s+=`<rect x="${x(a)}" y="${top}" width="${Math.max(x(Math.min(i,n-1))-x(a),1)}" height="${h}" fill="${v[a]>0?'#0a0':'#c00'}" opacity=".5"/>`;a=i}}});
+  lanes=`<svg viewBox="0 0 ${W} ${3*(h+gap)+2}" width="100%" role="img" aria-label="Each sleeve's side over the same days">${s}</svg>`}
  return '<div class="legend"><span><i style="background:#222"></i>VN30F1M</span><span><i style="background:#0a0;opacity:.35"></i>holding long</span><span><i style="background:#c00;opacity:.35"></i>holding short</span><span><span class="buy">▲</span> buy <span class="sell">▼</span> sell</span></div>'+
- `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="VN30F1M from ${days[0]} to ${days[D-1]} with the bot's trades">${g}</svg>`}
+ `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="VN30F1M from ${days[0]} to ${days[D-1]} with the bot's trades">${g}</svg>`+
+ (lanes?`<div class="legend" style="margin-top:4px">Each sleeve's side: green long, red short; the bot holds the sign of their sum</div>${lanes}`:'')}
 
 function orderTable(rows,withDate){return '<div class="scroll"><table><tr>'+(withDate?'<th>Date</th>':'')+'<th>Time</th><th>Side</th><th>Qty</th><th>Limit</th><th>Reason</th><th>Position before</th><th>Result</th></tr>'+
- (rows.map(o=>`<tr>${withDate?`<td>${o.at.slice(0,10)}</td>`:''}<td>${o.at.slice(11,19)}</td><td>${side(o.side=='BUY'?1:-1)}</td><td class="n">${o.qty}</td><td class="n">${o.price}</td><td>${o.reason}</td><td class="n">${o.position_before??''}</td><td>${esc(o.status)}${o.filled&&o.filled!=o.qty?` (${o.filled})`:''}</td></tr>`).join('')
+ (rows.map(o=>`<tr${o.before_record?' class="r-quiet"':''}>${withDate?`<td>${o.at.slice(0,10)}</td>`:''}<td>${o.at.slice(11,19)}</td><td>${side(o.side=='BUY'?1:-1)}</td><td class="n">${o.qty}</td><td class="n">${o.price}</td><td>${o.reason}</td><td class="n">${o.position_before??''}</td><td>${esc(o.status)}${o.filled&&o.filled!=o.qty?` (${o.filled})`:''}${o.before_record?' · trial run, not in the results':''}</td></tr>`).join('')
  ||`<tr><td colspan="${withDate?8:7}" class="muted">No orders.</td></tr>`)+'</table></div>'}
+const NAMES={calendar:'Calendar',basis:'Basis',momentum:'Momentum'},when2=s=>s?`${dm(s)} ${s.slice(11,16)}`:'–';
+function tradeTable(rows){return '<div class="scroll"><table><tr><th>Opened</th><th>Closed</th><th>Side</th><th>Entry ≈</th><th>Exit ≈</th><th>Points</th><th>Result</th><th>Opened by</th></tr>'+
+ (rows.map(t=>`<tr><td>${when2(t.entry_at)}</td><td>${t.exit_at?when2(t.exit_at):'<span class="muted">open</span>'}</td><td>${side(t.side,t.qty)}</td><td class="n">${fmt(t.entry)}</td><td class="n">${fmt(t.exit)}</td>
+ <td class="n">${sgn(t.points,1)}</td><td class="n">${t.exit_at?money(t.million)+(t.exact?'':' <span class="muted">est.</span>'):money(S.account.open)+' <span class="muted">open</span>'}</td><td>${t.opened_by.map(k=>NAMES[k]).join(' + ')||'–'}</td></tr>`).join('')
+ ||'<tr><td colspan="8" class="muted">No trades yet.</td></tr>')+'</table></div>'}
 const inRange=at=>at.slice(0,10)>=S.from&&at.slice(0,10)<=S.to,multi=()=>S.from!=S.to;
 function rangePicker(){const n=S.days.length-1;if(n<1)return `<p class="muted">${S.from}</p>`;
  return `<div class="range"><div class="rl"><b id="rfrom"></b>→<b id="rto"></b><span class="muted" id="rcount"></span></div>
@@ -587,17 +764,21 @@ function overview(){const h=S.health||{},tg=h.targets||{},th=S.thresholds,op=S.o
  <tr><td>${tg.contract??'–'}</td><td>${pos==null?'–':side(pos,Math.abs(pos))}</td><td class="n">${op?fmt(op.entry):'–'}</td><td class="n">${fmt(np.last)}</td>
  <td class="n">${np.open_points==null?'–':`${money(np.open_million)} <span class="muted">(${sgn(np.open_points,1)} pts)</span>`}</td><td class="n">${money(np.today_million)}</td>
  <td class="n" title="Free cash ${fmt(h.remain_cash_million)} M VND: equity minus the margin held">${np.buffer_points==null?(h.remain_cash_million!=null?fmt(h.remain_cash_million)+' M free':'–'):`<b class="${np.buffer_points<30?'down':''}">≈ ${fmt(np.buffer_points,0)} pts</b> <span class="muted">against us</span>`}</td></tr></table></div>`;
- html+=`<h3>Signals <small>· bar ${tg.last_minute?tg.last_minute.slice(11,16):'–'}</small></h3><table><tr><th>Source</th><th>Signal</th><th>Detail</th></tr>
- <tr><td>Calendar</td><td>${side(tg.calendar)}</td><td class="muted">Monday short, Tuesday–Wednesday long</td></tr>
- <tr><td>Basis</td><td>${side(tg.basis)}</td><td>z = ${sgn(tg.basis_z)} <span class="muted">(trades at |z| ≥ ${th.z_entry}; ${tg.basis_bars??'–'} of ${th.window} bars)</span></td></tr>
- <tr><td>Momentum</td><td>${side(tg.momentum)}</td><td>score = ${sgn(tg.momentum_score,3)} <span class="muted">(trades at |score| ≥ ${fmt(th.theta,3)})</span></td></tr>
- <tr><td><b>Vote</b></td><td>${side(tg.vote,tg.vote?h.qty:0)}</td><td class="muted">sign of Calendar + Basis + Momentum, × ${h.qty??10} contracts</td></tr></table>`;
+ const sl=S.sleeves,last=np.last,stop=s=>s.stop==null?'':` · stop ${fmt(s.stop)}${last!=null?` <span class="muted">(${fmt(Math.abs(last-s.stop))} pts away)</span>`:''}`;
+ const since=s=>`${s.side?'':'<span class="muted">flat </span>'}${when2(s.since)}${s.side&&s.entry!=null?` <span class="muted">at ${fmt(s.entry)}</span>`:''}`;
+ const warm=tg.basis_bars!=null&&th.window&&tg.basis_bars<th.window?` <span class="muted">· warming up, ${tg.basis_bars} of ${th.window} bars</span>`:'';
+ html+=`<h3>Signals <small>· bar ${tg.last_minute?tg.last_minute.slice(11,16):'–'}</small></h3><div class="scroll"><table><tr><th>Source</th><th>Side</th><th>Since</th><th>Out when</th><th>Now</th></tr>
+ <tr><td>Calendar</td><td>${side(sl.calendar.side)}</td><td>${since(sl.calendar)}</td><td>${sl.calendar.side>0?`at ${when2(sc.long_to)}`:sl.calendar.side<0?'at 14:20':'<span class="muted">enters Monday short, Tuesday–Wednesday long</span>'}</td><td class="muted">calendar rules</td></tr>
+ <tr><td>Basis</td><td>${side(sl.basis.side)}</td><td>${since(sl.basis)}</td><td>${sl.basis.side?`z back to 0${stop(sl.basis)}`:`<span class="muted">enters at |z| ≥ ${th.z_entry}</span>`}</td><td>z = ${sgn(tg.basis_z)}${warm}</td></tr>
+ <tr><td>Momentum</td><td>${side(sl.momentum.side)}</td><td>${since(sl.momentum)}</td><td>${sl.momentum.side?`score turns, or after ${S.momentum_max_bars} bars${stop(sl.momentum)}`:`<span class="muted">enters at |score| ≥ ${fmt(th.theta,3)}</span>`}</td><td>score = ${sgn(tg.momentum_score,3)}</td></tr>
+ <tr><td><b>Vote</b></td><td>${side(tg.vote,tg.vote?h.qty:0)}</td><td colspan="3" class="muted">sign of Calendar + Basis + Momentum, × ${h.qty??10} contracts · bars are 30 minutes (Calendar 10) · a sleeve's stop is from its own entry</td></tr></table></div>`;
  html+=`<h3>Ahead</h3><table><tr><th>When</th><th>What</th></tr>
  <tr><td>${dm(sc.expiry)}</td><td><b>${sc.contract} expires</b>${sc.sessions_left?` · ${sc.sessions_left} session${sc.sessions_left>1?'s':''} left`:' · today'} <span class="muted">· flat that day; Basis then waits ${th.window??60} bars (about ${S.basis_warmup_sessions} sessions) on the new contract</span></td></tr>
  <tr><td>${dm(sc.long_from)} ${sc.long_from.slice(11,16)} → ${dm(sc.long_to)} ${sc.long_to.slice(11,16)}</td><td>Calendar <b>long</b>, Tuesday–Wednesday${sc.long_now?' <span class="up">· in the window now</span>':''}</td></tr>
  <tr><td>${dm(sc.monday)}</td><td>Calendar <b>short</b> if a 10-minute close falls below the 09:00–09:30 low before 13:00; out at 14:20</td></tr></table>`;
  html+=`<h3>Sessions <small>· drag either end to choose the days</small></h3>${rangePicker()}<div class="chart">${S.charts.intraday?sessionChart(S.charts.intraday):`<p class="muted">${esc(S.charts.error)||'No prices.'}</p>`}</div>`;
  html+=`<h3>Since start <small>· percent of the starting account; holding the same contracts on the same cash, after fees</small></h3><div class="chart">${sinceChart(S.charts.since)}</div>`;
+ html+=`<h3>Trades <small>· flat to flat, latest first · prices are estimates; results exact from the broker's cash unless marked est.</small></h3>`+tradeTable(S.trades);
  html+=`<h3>Orders <small>· ${multi()?S.from+' → '+S.to:S.from}</small></h3>`+orderTable(S.orders.filter(o=>inRange(o.at)),multi());
  return html}
 const ordersTab=()=>`<h3>All orders <small>· ${S.orders.length}, latest first · limit prices; fills are about 0.3 points better</small></h3>`+orderTable(S.orders,true);
@@ -609,12 +790,16 @@ function sidebar(){const h=S.health||{},fa=h.feed_age_s||{},c=S.charts.since,pf=
  const last=a=>a&&a.length?[...a].reverse().find(v=>v!=null):null;
  $('bot').innerHTML=`<p style="margin:0 0 6px"><span class="dot ${S.status.level}"></span>${esc(S.status.text)}</p>
  <div><span>Updated</span><span>${ago(S.health_age_s)} ago</span></div><div><span>Mode</span><span>${h.mode??'–'}, ${h.qty??'–'} contracts</span></div>`;
- $('since').innerHTML=`<div><span>Realized</span><span class="big">${S.realized_million==null?'–':sgn(S.realized_million)+' M'}</span></div>
- <div><span>Account</span><span>${c?sgn(last(c.bot))+'%':'–'}</span></div><div><span>Hold ${h.qty??10} VN30F1M</span><span>${c?sgn(last(c.hold))+'%':'–'}</span></div>
+ const ac=S.account,pct=ac.total!=null&&ac.start?ac.total/ac.start*100:null;
+ $('since').innerHTML=`<div><span>Profit</span><span class="big">${money(ac.total)}</span></div>
+ <div class="sub"><span>closed trades</span><span>${money(ac.closed)}</span></div><div class="sub"><span>open position</span><span>${money(ac.open)}</span></div>
+ <div><span>Account</span><span>${fmt(ac.now)} M <span class="muted">(${pct==null?'–':sgn(pct)+'%'})</span></span></div><div><span>Hold ${h.qty??10} VN30F1M</span><span>${c?sgn(last(c.hold))+'%':'–'}</span></div>
  <div><span>VN30 index</span><span>${c?sgn(last(c.index))+'%':'–'}</span></div>
  <div><span>Max drawdown</span><span>${pf.max_drawdown_pct==null?'–':sgn(pf.max_drawdown_pct,1)+'%'}</span></div>
  <div><span>Trades won</span><span>${pf.trades?`${pf.won} / ${pf.trades}`:'–'}</span></div><div><span>Fees paid</span><span>${fmt(pf.fees_million,2)} M</span></div>
- <p class="muted" style="margin:6px 0 0">From ${S.realized.length?S.realized[0].at.slice(0,10):'–'}. Realized and trades are exact (the broker's cash when flat); the rest is marked at DNSE closes.</p>`;
+ <p class="muted">From ${S.record_from?when2(S.record_from):'–'} on ${fmt(ac.start)} M VND. Closed trades are exact (the broker's cash when flat); the open position is marked at the last DNSE close.</p>`;
+ $('about').innerHTML=`<p style="margin:0">Calibrum trades VN30F1M on a DNSE PaperTrade account. Three sleeves each say long, short or flat on the bar just closed: <b>Calendar</b> (Monday short, Tuesday–Wednesday long), <b>Basis</b> (futures against the VN30 index) and <b>Momentum</b> (a regression on the last bars). The bot holds ${h.qty??10} contracts in the direction of their sum.</p>
+ <p>Parameters were fixed on 2020–2022 and tested on 2023–2026 before trading on paper. This page only reads the bot's files and DNSE's public prices.</p>`;
  $('conn').innerHTML=`<div><span>VN30F1M bar</span><span>${ago(fa.futures)} old</span></div><div><span>VN30 bar</span><span>${ago(fa.index)} old</span></div>
  <div><span>Broker (FIX)</span><span>${h.fix_logged_on?'connected':'<b style="color:#c00">down</b>'}</span></div><div><span>Pending order</span><span>${h.pending?esc(h.pending[0]):'none'}</span></div>
  ${S.charts.error?`<p style="color:#c00;margin:6px 0 0">Prices: ${esc(S.charts.error)}</p>`:''}`}

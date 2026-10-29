@@ -8,6 +8,7 @@ import pandas as pd
 
 from papertrade.calibrum.dashboard import (
     ICT,
+    account,
     account_curve,
     comparison,
     fills,
@@ -21,9 +22,14 @@ from papertrade.calibrum.dashboard import (
     read_journal,
     realized,
     schedule,
+    record_start,
+    sleeves,
+    sleeve_changes,
     StateCache,
     state,
     status,
+    STOP_POINTS,
+    trades,
 )
 
 
@@ -107,7 +113,7 @@ def test_holding_pays_the_fee_and_rolls_on_the_adjusted_closes():
 def test_performance_counts_closed_trades_from_flat_to_flat(tmp_path):
     rows = _fills(tmp_path)
     curve = pd.Series([550.0, 560.0, 553.0, 556.0])
-    out = performance(curve, realized(rows), rows)
+    out = performance(curve, trades(rows), rows)
     assert out["trades"] == 1 and out["won"] == 1  # 550 -> 554; the short is still open
     assert out["max_drawdown_pct"] == -1.25 and out["fees_million"] == 0.6
 
@@ -157,7 +163,7 @@ def test_intraday_spans_several_days_and_keeps_every_change(tmp_path):
 def test_journal_reads_as_sentences(tmp_path):
     lines = journal_lines(read_journal(_journal(tmp_path, RECORDS)))
     texts = [line["text"] for line in lines]
-    assert texts.count("Vote now BUY (Calendar +1, Basis +0, Momentum +0)") == 1  # repeated targets dropped
+    assert texts.count("Calendar +1, Basis +0, Momentum +0 → vote BUY") == 1  # repeated targets dropped
     late = [line for line in lines if line["event"] == "index_late"]
     assert len(late) == 1 and late[0]["count"] == 2  # folded
 
@@ -178,7 +184,7 @@ def test_state_without_prices(tmp_path):
     (tmp_path / "health.json").write_text(json.dumps({"at": "2026-10-26T11:00:00", "fix_logged_on": True}), encoding="utf-8")
     snapshot = state(tmp_path, now=datetime(2026, 10, 26, 11, 0, 30, tzinfo=ICT))
     assert snapshot["status"]["level"] == "ok" and snapshot["from"] == snapshot["to"] == "2026-10-26"
-    assert len(snapshot["orders"]) == 3 and snapshot["realized_million"] == 4.0
+    assert len(snapshot["orders"]) == 3 and snapshot["account"]["closed"] == 4.0
     assert snapshot["charts"]["since"] is None  # the page still works without DNSE
 
 
@@ -191,7 +197,7 @@ def test_public_view_hides_order_ids_and_error_text(tmp_path):
     public = json.dumps(state(tmp_path, now=now, public=True))
     assert "broker.internal" in private and "Order a:" in private
     assert "broker.internal" not in public and "Order a" not in public and '"a"' not in public
-    assert json.loads(public)["realized_million"] == 4.0  # the numbers are the same
+    assert json.loads(public)["account"]["closed"] == 4.0  # the numbers are the same
 
 
 def test_state_cache_computes_once_per_range_and_ttl():
@@ -202,3 +208,80 @@ def test_state_cache_computes_once_per_range_and_ttl():
     now[0] = 16
     cache.get(None, None)
     assert calls[-1] == (None, None) and len(calls) == 3 and list(cache.saved) == [(None, None)]
+
+
+def test_trades_run_from_flat_to_flat(tmp_path):
+    rows = trades(_fills(tmp_path))
+    assert [(t["side"], t["qty"], t["entry"], t["exit"], t["points"]) for t in rows] == [
+        (1, 10, 1900.0, 1905.0, 5.0), (-1, 10, 1903.0, None, None)]
+    assert rows[0]["million"] == 4.0 and rows[0]["exact"]  # the broker's cash: 550 -> 554
+    assert rows[1]["exit_at"] is None and rows[1]["million"] is None
+    closed = trades(_fills(tmp_path)[:2])  # flat now, the cash not known: estimated
+    assert closed[0]["million"] == round(10 * 5.0 * 0.1 - 0.4, 2) and not closed[0]["exact"]
+    assert trades(_fills(tmp_path)[:2], flat_cash=554.5)[0]["million"] == 4.5
+
+
+def test_the_results_start_at_the_first_runner_with_todays_contract_count(tmp_path):
+    starts = [{"at": "2026-10-23T06:56:06+00:00", "event": "start", "qty": 1},
+              {"at": "2026-10-23T07:05:09+00:00", "event": "start", "qty": 10},
+              {"at": "2026-10-26T01:30:09+00:00", "event": "start", "qty": 10}]
+    assert record_start(read_journal(_journal(tmp_path, starts))) == "2026-10-23T14:05:09+07:00"
+    assert record_start([]) is None
+
+
+def test_account_splits_profit_into_closed_and_open(tmp_path):
+    rows = _fills(tmp_path)
+    curve = pd.Series([550.0, 551.0], index=pd.date_range("2026-10-26 09:01", periods=2, freq="1min"))
+    out = account(realized(rows), trades(rows), curve, {"position": -10})
+    assert out == {"start": 550.0, "now": 551.0, "total": 1.0, "closed": 4.0, "open": -3.0}
+    assert account(realized(rows), trades(rows), curve, {"position": 0, "remain_cash_million": 553.0})["now"] == 553.0
+
+
+TARGETS = [
+    {"at": "2026-10-28T07:00:05+00:00", "event": "target", "last_minute": "2026-10-28 13:59:00", "calendar": 1, "basis": 0, "momentum": 0, "vote": 1},
+    {"at": "2026-10-28T07:30:05+00:00", "event": "target", "last_minute": "2026-10-28 14:28:00", "calendar": 1, "basis": 1, "momentum": 0, "vote": 1},
+    {"at": "2026-10-29T03:00:05+00:00", "event": "target", "last_minute": "2026-10-29 09:59:00", "calendar": 0, "basis": 1, "momentum": 0, "vote": 1},
+]
+
+
+def test_sleeves_know_since_when_and_their_stop(tmp_path):
+    records = read_journal(_journal(tmp_path, TARGETS))
+    minutes = pd.date_range("2026-10-28 14:25", periods=5, freq="1min")
+    close = pd.Series([1890.0, 1891.0, 1892.0, 1893.0, 1894.0], index=minutes)
+    out = sleeves(records, close)
+    assert out["basis"] == {"side": 1, "since": "2026-10-28 14:28:00", "entry": 1893.0, "stop": 1893.0 - 14.0}
+    assert out["calendar"]["side"] == 0 and out["calendar"]["since"] == "2026-10-29 09:59:00"
+    assert out["momentum"] == {"side": 0, "since": None, "entry": None, "stop": None}
+
+
+def test_stops_match_the_sleeves():
+    import inspect
+
+    from src.lab.calibrum_1m import basis, momentum
+
+    assert STOP_POINTS["basis"] == inspect.signature(basis.positions).parameters["stop_points"].default
+    assert STOP_POINTS["momentum"] == inspect.signature(momentum.positions).parameters["stop_points"].default
+
+
+def test_session_chart_carries_each_sleeve(tmp_path):
+    records = read_journal(_journal(tmp_path, TARGETS))
+    minutes = pd.date_range("2026-10-29 09:55", "2026-10-29 10:05", freq="1min")
+    day = intraday("2026-10-29", "2026-10-29", [], pd.Series(1900.0, index=minutes), sleeve_changes(records))
+    at = {t: (c, b) for t, c, b in zip(day["t"], day["sleeves"]["calendar"], day["sleeves"]["basis"])}
+    assert at["2026-10-29 09:55"] == (1, 1) and at["2026-10-29 10:00"] == (0, 1)  # known at 10:00:05
+    assert intraday("2026-10-29", "2026-10-29", [], pd.Series(1900.0, index=minutes))["sleeves"] is None
+
+
+def test_journal_shows_sleeve_changes_and_quiets_the_daily_open(tmp_path):
+    records = TARGETS + [
+        {"at": "2026-10-29T06:00:02+00:00", "event": "blocked", "reason": "DNSE futures feed stale"},
+        {"at": "2026-10-29T06:01:05+00:00", "event": "unblocked", "reason": "DNSE futures feed stale"},
+        {"at": "2026-10-29T06:30:00+00:00", "event": "blocked", "reason": "DNSE futures feed stale"},
+    ]
+    lines = journal_lines(read_journal(_journal(tmp_path, records)))
+    assert [line["event"] for line in lines] == ["target", "target", "target", "blocked", "blocked"]  # vote never changed
+    assert lines[3]["level"] == "quiet" and lines[3]["until"].endswith("13:01:05+07:00")
+    assert lines[4]["level"] == "warn"  # 13:30 is not the open
+    late = [{"at": f"2026-10-29T02:0{m}:16+00:00", "event": "index_late"} for m in range(1, 4)]
+    folded = journal_lines(read_journal(_journal(tmp_path, late)))
+    assert len(folded) == 1 and folded[0]["level"] == "quiet" and folded[0]["count"] == 3

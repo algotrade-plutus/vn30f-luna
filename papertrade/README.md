@@ -43,8 +43,10 @@ Trên EC2: state ở `/var/lib/calibrum/live/` (`journal.jsonl`, `health.json`, 
 
 Dashboard (`calibrum/dashboard.py`, unit `calibrum-dashboard.service`) chạy cùng image với runner nhưng không có
 secret: chỉ đọc `health.json` và `journal.jsonl` (mount read-only), không gọi broker, chỉ nghe ở `127.0.0.1:8080`
-trên EC2. Trang hiện trạng thái, vị thế, tín hiệu C/B/M/vote của nến vừa đóng, độ trễ dữ liệu, dải tín hiệu trong
-phiên, giá trị tài khoản ở các lúc đứng phẳng (lúc đó tiền mặt là toàn bộ tài khoản), bảng lệnh và journal.
+trên EC2. Trang hiện trạng thái, vị thế, từng sleeve C/B/M (chiều, từ lúc nào, khi nào thoát, mức stop), độ trễ dữ
+liệu, dải chiều của từng sleeve trong phiên, lãi lỗ tách phần lệnh đã đóng (chính xác, từ tiền mặt lúc đứng phẳng)
+và phần vị thế đang mở, bảng giao dịch từ phẳng tới phẳng, bảng lệnh và journal. Kết quả tính từ lần chạy đầu tiên
+với số hợp đồng hiện tại; lệnh thử 1 hợp đồng ngày 23/10/2026 chỉ còn trong bảng lệnh.
 Giá vào lệnh chỉ là xấp xỉ (giá LIMIT ∓ 0,3 điểm); lãi lỗ chính xác vẫn xem trên trang PaperTrade.
 
 Bản công khai ở https://calibrum.binarysearch.id.vn: cùng trang, nhưng không có mã lệnh và nội dung lỗi. Dashboard
