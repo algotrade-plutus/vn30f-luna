@@ -2,7 +2,9 @@
 """Deck figures: cumulative profit in million VND of the seven combinations.
 
 - in_sample_equity_*.png (step 4): in-sample with the starting parameters,
-  from reports/calibrum_1m/in_sample_baseline.json.
+  from reports/calibrum_1m/in_sample_baseline.json; each label adds a second
+  line with Sharpe, max drawdown and trades per year, joined to its line's end
+  by a short leader in the line's colour.
 - full_equity_*.png: in-sample to OOS 2 with the step-5 parameters,
   from reports/calibrum_1m/oos2.json, with the periods marked and the
   out-of-sample years shaded.
@@ -12,6 +14,8 @@
 - yearly_in_sample.png (step 4): in-sample net profit by year of the seven combinations.
 - correlation_*.png: daily-profit correlation of the sleeves as heatmaps
   (in-sample with the starting values; each period with the step-5 ones).
+- in_sample_equity_beside_sleeves.png and correlation_in_sample_beside.png:
+  the step-4 sleeves chart and its correlation matrix sized to share one slide.
 
 Each figure is split into two wide images, written at twice their slide size:
 the sleeves alone (``*_sleeves.png``), then the pairs and all three (``*_combos.png``). Colours are the dataviz
@@ -36,6 +40,9 @@ WORKSPACE = Path(__file__).resolve().parents[1]
 REPORTS = WORKSPACE / "reports" / "calibrum_1m"
 FIGURES = REPORTS / "figures"
 MILLION_VND_PER_POINT = 0.1  # 1 point = 100,000 VND
+TRADING_DAYS = 250  # as the pipeline's metrics, for trades per year
+LABEL_ROOM_PX = 480  # slide pixels taken by a two-line end label
+STATS_INK = "#555555"  # the second label line: darker than MUTED so it stays legible on a projector
 
 # White, as the live dashboard: grey grid and text, one blue accent.
 SURFACE, INK, MUTED, GRID, SHADE = "#FFFFFF", "#222222", "#888888", "#E1E1E1", "#F4F4F4"
@@ -87,15 +94,70 @@ def _label_positions(ends: dict[str, float], gap: float) -> dict[str, float]:
     return placed
 
 
-def draw(source: Path, out_stem: Path, size_px: tuple[int, int], mark_periods: bool) -> list[Path]:
-    """One wide figure per panel: ``<stem>_sleeves.png`` and ``<stem>_combos.png``."""
+def _stats_lines(source: Path, period: str | None = None) -> dict[str, str]:
+    """Second label line per combination: Sharpe, max drawdown and trades per year (of ``period`` if rows have one)."""
+    combos = json.loads(source.read_text(encoding="utf-8"))["combos"]
+    return {
+        row["combo"]: f"Sharpe {row['sharpe']:.2f} · DD {row['mdd_pct']:.1f}% · "
+        f"{row['trades'] / (row['sessions'] / TRADING_DAYS):.0f} trades/yr"
+        for row in combos
+        if period is None or row["period"] == period
+    }
+
+
+def _stacked_positions(ends: dict[str, float], halves: dict[str, float], top: float) -> dict[str, float]:
+    """Like ``_label_positions`` with a half-height per label (two neighbours sit their half-heights apart),
+    then pushed down so none rises above ``top``."""
+    placed: dict[str, float] = {}
+    previous = None
+    for name, value in sorted(ends.items(), key=lambda item: item[1]):
+        placed[name] = value if previous is None else max(value, placed[previous] + halves[previous] + halves[name])
+        previous = name
+    ceiling = top
+    order = sorted(placed, key=placed.get, reverse=True)
+    for name, lower in zip(order, order[1:] + [None]):
+        if placed[name] <= ceiling:
+            break
+        placed[name] = ceiling
+        if lower is not None:
+            ceiling -= halves[name] + halves[lower]
+    return placed
+
+
+def _two_line_labels(ax, shown: dict[str, pd.Series], colours: dict[str, str], stats: dict[str, str],
+                     top: float, span: float) -> None:
+    """Name and profit in bold, the stats line beneath in dark grey; benchmarks keep one line, also dark grey."""
+    ends = {name: series.iloc[-1] for name, series in shown.items()}
+    halves = {name: (0.035 if name in BENCHMARKS else 0.07) * span for name in ends}
+    points_per_unit = (ax.transData.transform((0, 1))[1] - ax.transData.transform((0, 0))[1]) * 72 / DPI
+    for name, y in _stacked_positions(ends, halves, top + 0.03 * span).items():
+        x = shown[name].index[-1]
+        if name in BENCHMARKS:  # in the same column as the others, clear of their leaders
+            ax.annotate(f"{NAMES[name]}  {ends[name]:+.0f}M".replace("-", "−"), xy=(x, y), xytext=(32, 0),
+                        textcoords="offset points", va="center", color=STATS_INK, annotation_clip=False)
+            continue
+        ax.annotate("", xy=(x, ends[name]), xytext=(26, (y - ends[name]) * points_per_unit + 9),
+                    textcoords="offset points", annotation_clip=False,
+                    arrowprops={"arrowstyle": "-", "color": colours[name], "linewidth": 2.4, "shrinkA": 0, "shrinkB": 3})
+        ax.annotate(f"{NAMES.get(name, name)}  {ends[name]:+.0f}M".replace("-", "−"), xy=(x, y), xytext=(32, 9),
+                    textcoords="offset points", va="center", color=INK, fontweight="bold", annotation_clip=False)
+        ax.annotate(stats[name].replace("-", "−"), xy=(x, y), xytext=(32, -11), textcoords="offset points", va="center",
+                    color=STATS_INK, fontsize=14.5, annotation_clip=False)
+
+
+def draw(source: Path, out_stem: Path, size_px: tuple[int, int], mark_periods: bool,
+         with_stats: bool = False, only: str | None = None) -> list[Path]:
+    """One wide figure per panel: ``<stem>_sleeves.png`` and ``<stem>_combos.png`` (or just ``only``)."""
     curves = _curves(source)
     first = min(curve.index[0] for curve in curves.values())
     last = max(curve.index[-1] for curve in curves.values())
     references = _benchmarks(first, last)
+    stats = _stats_lines(source) if with_stats else None
     written = []
     plt.rcParams.update({"font.family": FONT, "font.size": FONT_SIZE, "axes.edgecolor": GRID})
     for (title, colours), suffix in zip(PANELS, ("sleeves", "combos")):
+        if only and suffix != only:
+            continue
         shown = {**{combo: curves[combo] for combo in colours}, **references}
         top = max(series.max() for series in shown.values())
         bottom = min(0.0, min(series.min() for series in shown.values()))
@@ -119,18 +181,6 @@ def draw(source: Path, out_stem: Path, size_px: tuple[int, int], mark_periods: b
             if name in references:
                 ax.plot(references[name].index, references[name].to_numpy(), color=colour, linewidth=1.8,
                         linestyle=dash)
-        ends = {name: series.iloc[-1] for name, series in shown.items()}
-        for combo, y in _label_positions(ends, gap=0.06 * span).items():
-            ax.annotate(
-                f"{NAMES.get(combo, combo)}  {ends[combo]:+.0f}M",
-                xy=(shown[combo].index[-1], y),
-                xytext=(10, 0),
-                textcoords="offset points",
-                va="center",
-                color=MUTED if combo in BENCHMARKS else INK,
-                fontweight="bold" if combo == "C+B+M" else "normal",
-                annotation_clip=False,
-            )
         ax.axhline(0, color=MUTED, linewidth=1)
         ax.grid(axis="y", color=GRID, linewidth=1)
         ax.set_ylim(bottom - 0.03 * span, top + (0.14 if mark_periods else 0.05) * span)
@@ -139,10 +189,29 @@ def draw(source: Path, out_stem: Path, size_px: tuple[int, int], mark_periods: b
         ax.tick_params(colors=MUTED, length=0)
         for side in ("top", "right", "left"):
             ax.spines[side].set_visible(False)
-        ax.set_xlim(first, last + (last - first) * 0.17)
+        # Two-line labels need about LABEL_ROOM_PX of the slide whatever the figure's width.
+        room = LABEL_ROOM_PX / (size_px[0] - 75 - LABEL_ROOM_PX) if stats else 0.17
+        ax.set_xlim(first, last + (last - first) * room)
         ax.set_ylabel("Cumulative net profit, million VND", color=MUTED)
         ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda value, _: f"{value:.0f}"))
         fig.tight_layout()
+        if stats:
+            # Leaders are placed in points, so the layout must be final first.
+            fig.canvas.draw()
+            _two_line_labels(ax, shown, colours, stats, top, span)
+        else:
+            ends = {name: series.iloc[-1] for name, series in shown.items()}
+            for combo, y in _label_positions(ends, gap=0.06 * span).items():
+                ax.annotate(
+                    f"{NAMES.get(combo, combo)}  {ends[combo]:+.0f}M",
+                    xy=(shown[combo].index[-1], y),
+                    xytext=(10, 0),
+                    textcoords="offset points",
+                    va="center",
+                    color=MUTED if combo in BENCHMARKS else INK,
+                    fontweight="bold" if combo == "C+B+M" else "normal",
+                    annotation_clip=False,
+                )
         out = out_stem.with_name(f"{out_stem.name}_{suffix}.png")
         out.parent.mkdir(parents=True, exist_ok=True)
         fig.savefig(out, dpi=DPI, facecolor=SURFACE)
@@ -151,8 +220,12 @@ def draw(source: Path, out_stem: Path, size_px: tuple[int, int], mark_periods: b
     return written
 
 
-def draw_period(source: Path, start: str, end: str, out_stem: Path, size_px: tuple[int, int] = (1664, 640)) -> list[Path]:
-    """Cumulative profit inside one period, every line from zero: ``<stem>_sleeves.png`` and ``<stem>_combos.png``."""
+def draw_period(source: Path, start: str, end: str, out_stem: Path, size_px: tuple[int, int] = (1664, 640),
+                stats_period: str | None = None) -> list[Path]:
+    """Cumulative profit inside one period, every line from zero: ``<stem>_sleeves.png`` and ``<stem>_combos.png``.
+
+    With ``stats_period`` the labels add that period's Sharpe, max drawdown and trades per year, as in step 4.
+    """
     payload = json.loads(source.read_text(encoding="utf-8"))["daily_net_points"]
     lo, hi = pd.Timestamp(start), pd.Timestamp(end)
     curves = {}
@@ -161,6 +234,7 @@ def draw_period(source: Path, start: str, end: str, out_stem: Path, size_px: tup
         curves[name] = daily[(daily.index >= lo) & (daily.index <= hi)].cumsum() * MILLION_VND_PER_POINT
     first, last = min(c.index[0] for c in curves.values()), max(c.index[-1] for c in curves.values())
     references = _benchmarks(first, last)
+    stats = _stats_lines(source, stats_period) if stats_period else None
     written = []
     plt.rcParams.update({"font.family": FONT, "font.size": FONT_SIZE, "axes.edgecolor": GRID})
     for (_, colours), suffix in zip(PANELS, ("sleeves", "combos")):
@@ -177,11 +251,6 @@ def draw_period(source: Path, start: str, end: str, out_stem: Path, size_px: tup
         for name, (colour, dash) in BENCHMARKS.items():
             if name in references:
                 ax.plot(references[name].index, references[name].to_numpy(), color=colour, linewidth=1.8, linestyle=dash)
-        ends = {name: series.iloc[-1] for name, series in shown.items()}
-        for name, y in _label_positions(ends, gap=0.065 * span).items():
-            ax.annotate(f"{NAMES.get(name, name)}  {ends[name]:+.0f}M", xy=(shown[name].index[-1], y), xytext=(10, 0),
-                        textcoords="offset points", va="center", annotation_clip=False,
-                        color=MUTED if name in BENCHMARKS else INK, fontweight="bold" if name == "C+B+M" else "normal")
         ax.axhline(0, color=MUTED, linewidth=1)
         ax.grid(axis="y", color=GRID, linewidth=1)
         ax.set_ylim(bottom - 0.04 * span, top + 0.06 * span)
@@ -195,10 +264,22 @@ def draw_period(source: Path, start: str, end: str, out_stem: Path, size_px: tup
         ax.tick_params(colors=MUTED, length=0)
         for side in ("top", "right", "left"):
             ax.spines[side].set_visible(False)
-        ax.set_xlim(first, last + (last - first) * 0.2)
+        room = LABEL_ROOM_PX / (size_px[0] - 75 - LABEL_ROOM_PX) if stats else 0.2
+        ax.set_xlim(first, last + (last - first) * room)
         ax.set_ylabel("Cumulative net profit, million VND", color=MUTED)
         ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda value, _: f"{value:.0f}".replace("-", "\u2212")))
+        if not stats:
+            ends = {name: series.iloc[-1] for name, series in shown.items()}
+            for name, y in _label_positions(ends, gap=0.065 * span).items():
+                ax.annotate(f"{NAMES.get(name, name)}  {ends[name]:+.0f}M", xy=(shown[name].index[-1], y),
+                            xytext=(10, 0), textcoords="offset points", va="center", annotation_clip=False,
+                            color=MUTED if name in BENCHMARKS else INK,
+                            fontweight="bold" if name == "C+B+M" else "normal")
         fig.tight_layout()
+        if stats:
+            # Leaders are placed in points, so the layout must be final first.
+            fig.canvas.draw()
+            _two_line_labels(ax, shown, colours, stats, top, span)
         out = out_stem.with_name(f"{out_stem.name}_{suffix}.png")
         out.parent.mkdir(parents=True, exist_ok=True)
         fig.savefig(out, dpi=DPI, facecolor=SURFACE)
@@ -207,18 +288,21 @@ def draw_period(source: Path, start: str, end: str, out_stem: Path, size_px: tup
     return written
 
 
-def draw_correlation(matrices: dict[str, dict], out: Path, size_px: tuple[int, int]) -> Path:
+def draw_correlation(matrices: dict[str, dict], out: Path, size_px: tuple[int, int], scale_bar: bool = True) -> Path:
     """Daily-profit correlation of the three sleeves as a full matrix, one per title, on a fixed -1..+1 scale.
 
     Diverging blue (negative) to orange (positive) through a neutral grey at zero;
     every cell carries its value, and the colour scale under the matrices reads by itself.
+    Text shrinks with the figure below 620 px wide; an empty title leaves the heading to the slide,
+    and ``scale_bar=False`` leaves the scale to it too.
     """
     from matplotlib.colors import LinearSegmentedColormap
 
     cmap = LinearSegmentedColormap.from_list("diverging", [ACCENT, SHADE, ORANGE])
     names = ["C", "B", "M"]
     labels = [NAMES[n] for n in names]
-    plt.rcParams.update({"font.family": FONT, "font.size": FONT_SIZE + 1})
+    shrink = max(0.8, min(1.0, size_px[0] / (620 * len(matrices))))
+    plt.rcParams.update({"font.family": FONT, "font.size": (FONT_SIZE + 1) * shrink})
     fig, axes = plt.subplots(1, len(matrices), figsize=(2 * size_px[0] / DPI, 2 * size_px[1] / DPI))
     axes = [axes] if len(matrices) == 1 else list(axes)
     fig.patch.set_facecolor(SURFACE)
@@ -228,7 +312,7 @@ def draw_correlation(matrices: dict[str, dict], out: Path, size_px: tuple[int, i
         for i in range(3):
             for j in range(3):
                 ax.text(j, i, f"{values[i, j]:+.2f}".replace("-", "\u2212").replace("+1.00", "1.00"), ha="center",
-                        va="center", color=SURFACE if i == j else INK, fontsize=18, fontweight="bold")
+                        va="center", color=SURFACE if i == j else INK, fontsize=18 * shrink, fontweight="bold")
         ax.set_xticks(range(3), labels, color=INK)
         ax.set_yticks(range(3), labels if ax is axes[0] else [""] * 3, color=INK)
         for spine in ax.spines.values():
@@ -237,13 +321,19 @@ def draw_correlation(matrices: dict[str, dict], out: Path, size_px: tuple[int, i
         ax.set_yticks([0.5, 1.5], minor=True)
         ax.grid(which="minor", color=SURFACE, linewidth=6)
         ax.tick_params(which="both", length=0)
-        ax.set_title(title, color=INK, fontsize=22, pad=14)
-    fig.tight_layout(rect=(0, 0.2, 1, 0.94))
+        if title:
+            ax.set_title(title, color=INK, fontsize=22, pad=14)
+    fig.tight_layout(rect=(0, 0.2 if scale_bar else 0, 1, 0.94 if any(matrices) else 1))
+    if not scale_bar:
+        out.parent.mkdir(parents=True, exist_ok=True)
+        fig.savefig(out, dpi=DPI, facecolor=SURFACE)
+        plt.close(fig)
+        return out
     left = min(ax.get_position().x0 for ax in axes)
     right = max(ax.get_position().x1 for ax in axes)
     bar = fig.add_axes((left, 0.1, right - left, 0.035))
     scale = fig.colorbar(image, cax=bar, orientation="horizontal", ticks=[-1, 0, 1])
-    scale.ax.set_xticklabels(["\u22121\nopposite", "0\nunrelated", "+1\ntogether"], color=MUTED, fontsize=FONT_SIZE)
+    scale.ax.set_xticklabels(["\u22121\nopposite", "0\nunrelated", "+1\ntogether"], color=MUTED, fontsize=FONT_SIZE * shrink)
     scale.ax.tick_params(length=0)
     ends = scale.ax.get_xticklabels()
     ends[0].set_horizontalalignment("left")
@@ -300,7 +390,12 @@ def draw_yearly(yearly: dict[str, dict], out: Path, size_px: tuple[int, int]) ->
 
 
 def main() -> int:
-    for path in draw(REPORTS / "in_sample_baseline.json", FIGURES / "in_sample_equity", (1664, 640), mark_periods=False):
+    for path in draw(REPORTS / "in_sample_baseline.json", FIGURES / "in_sample_equity", (1664, 640), mark_periods=False,
+                     with_stats=True):
+        print(path)
+    # Step 4 shows the sleeves beside their correlation matrix, so that panel is also drawn narrower.
+    for path in draw(REPORTS / "in_sample_baseline.json", FIGURES / "in_sample_equity_beside", (1240, 640),
+                     mark_periods=False, with_stats=True, only="sleeves"):
         print(path)
     yearly = json.loads((REPORTS / "in_sample_baseline.json").read_text(encoding="utf-8"))["yearly_net_points"]
     print(draw_yearly(yearly, FIGURES / "yearly_in_sample.png", (980, 520)))
@@ -309,13 +404,15 @@ def main() -> int:
             print(path)
         for name, (start, end) in {"in_sample": ("2020-06-01", "2022-12-31"), "valid": ("2023-01-01", "2024-12-31"),
                                    "oos1": ("2025-01-01", "2025-12-31"), "oos2": ("2026-01-01", "2026-12-31")}.items():
-            for path in draw_period(REPORTS / "oos2.json", start, end, FIGURES / f"period_equity_{name}"):
+            for path in draw_period(REPORTS / "oos2.json", start, end, FIGURES / f"period_equity_{name}",
+                                    stats_period=name):
                 print(path)
         periods = json.loads((REPORTS / "oos2.json").read_text(encoding="utf-8"))["correlation"]
         titles = {"in_sample": "In-sample", "valid": "Valid 2023–24", "oos1": "2025", "oos2": "2026"}
         print(draw_correlation({titles[k]: periods[k] for k in titles}, FIGURES / "correlation_periods.png", (1664, 520)))
     baseline = json.loads((REPORTS / "in_sample_baseline.json").read_text(encoding="utf-8"))["correlation"]
     print(draw_correlation({"In-sample, starting values": baseline}, FIGURES / "correlation_in_sample.png", (620, 600)))
+    print(draw_correlation({"": baseline}, FIGURES / "correlation_in_sample_beside.png", (400, 400), scale_bar=False))
     return 0
 
 
