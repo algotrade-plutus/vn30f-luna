@@ -2,7 +2,7 @@
 
 Calibrum trades the VN30 index futures front-month contract (VN30F1M). It combines three sources of alpha whose good and bad periods differ: a **Monday-to-Wednesday calendar**, **basis reversion** between the futures and the index, and **intraday momentum** measured by a Ridge regression. The three sleeves vote, and the strategy holds at most one contract.
 
-This version is rebuilt on DNSE 1-minute data and follows steps 1 to 7 of the ALGOTRADE 9-step process; paper trading has run since 24 Aug 2026. Over June 2020 – October 2026, with one set of parameters, it makes **425 million VND on 100 million VND of capital**, about four times holding the futures, and it stays profitable in both out-of-sample years.
+This version is rebuilt on DNSE 1-minute data and follows steps 1 to 7 of the ALGOTRADE 9-step process; paper trading has run since 24 Aug 2026 ([live dashboard](https://calibrum.binarysearch.id.vn)). Over June 2020 – October 2026, with one set of parameters, it makes **425 million VND on 100 million VND of capital**, about four times holding the futures, and it stays profitable in both out-of-sample years.
 
 | | In-sample 2020–22 | Valid 2023–24 | OOS 1 · 2025 | OOS 2 · 2026 |
 |---|---:|---:|---:|---:|
@@ -311,7 +311,7 @@ The platform’s own holding-period chart shows +10.89% for the account against 
 1. *Rules that fire too rarely.* Over 2020–2026 the pre-holiday rule fires about 5 times a year, the expiry Thursday 12 and the start of the month 19; in the two months on paper they fired 1, 2 and 2 times. That is too few to tell an edge from luck. Calibrum’s Calendar keeps the weekly rules: Monday and Tuesday–Wednesday.
 2. *The paper code was not good enough.* My first runtime had bugs in sending and tracking orders, and it had to be watched and fixed by hand ([`papertrade/docs/REBUILD_NOTES.md`](papertrade/docs/REBUILD_NOTES.md) lists them). Calibrum’s runtime was rewritten to call the backtest’s own code.
 
-**Calibrum live, from 23 Oct 2026** (10 contracts, AWS EC2, [`papertrade/`](papertrade/README.md)):
+**Calibrum live, from 23 Oct 2026** (10 contracts, AWS EC2, [`papertrade/`](papertrade/README.md); live dashboard at [calibrum.binarysearch.id.vn](https://calibrum.binarysearch.id.vn)):
 
 ```mermaid
 flowchart LR
