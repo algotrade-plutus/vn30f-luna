@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Deck figures: the Basis and Momentum rules on one in-sample episode each, in the dashboard's session-chart style.
+"""Deck figures: the Calendar, Basis and Momentum rules on one in-sample episode each, in the dashboard's session-chart style.
 
 Top: VN30F1M every minute (and VN30 for Basis), shaded while the sleeve holds
 long (green) or short (red), with a triangle at each fill. Bottom: the signal on
@@ -9,6 +9,8 @@ long (green) or short (red), with a triangle at each fill. Bottom: the signal on
   the last W bars, so the band is where |Z| < z_in (W, z_in from basis_grid.json).
 - momentum_episode.png: the score ŷ of each regular bar against +/- θ
   (θ from momentum_threshold.json).
+- calendar_episode.png: one week of Calendar MTW, price only, with Monday's
+  first 30 minutes and their low.
 
 The legends name the parameters, not their values: the slides illustrate the entry and exit rules.
 Profit labels are before costs. Writes to reports/calibrum_1m/figures/.
@@ -46,7 +48,8 @@ from scripts.plot_calibrum_1m import (  # noqa: E402
     SURFACE,
 )
 from scripts.run_calibrum_1m import _model  # noqa: E402
-from src.adapters.data.dnse_minute_bars import load_index_minutes  # noqa: E402
+from src.adapters.data.dnse_minute_bars import bars_10m, load_index_minutes  # noqa: E402
+from src.adapters.strategies.calendar_mtw_signal_source import add_ib_low, drop_atc  # noqa: E402
 from src.lab.calibrum_1m import basis, momentum, pipeline  # noqa: E402
 
 # The dashboard's session chart: black price, green long, red short.
@@ -55,6 +58,7 @@ SIZE_PX = (1664, 640)
 # Basis starts just after the previous short stopped out (13:11), so every fill shown opens or closes inside the window.
 BASIS_WINDOW = (pd.Timestamp("2021-05-11 13:15"), pd.Timestamp("2021-05-14 14:45"))
 MOMENTUM_WINDOW = (pd.Timestamp("2022-04-25 09:00"), pd.Timestamp("2022-04-26 14:45"))
+CALENDAR_WINDOW = (pd.Timestamp("2021-07-19 09:00"), pd.Timestamp("2021-07-22 14:45"))
 
 
 class Episode:
@@ -80,18 +84,23 @@ class Episode:
         return (self.price[i] - entry_price) * self._previous(i) * MILLION_VND_PER_POINT
 
 
-def _figure() -> tuple[plt.Figure, plt.Axes, plt.Axes]:
+def _figure(with_signal: bool = True) -> tuple[plt.Figure, list[plt.Axes]]:
+    """The price panel, and under it a signal panel unless ``with_signal`` is False."""
     plt.rcParams.update({"font.family": FONT, "font.size": 15, "axes.edgecolor": GRID})
-    fig, (top, bottom) = plt.subplots(2, 1, figsize=(2 * SIZE_PX[0] / DPI, 2 * SIZE_PX[1] / DPI), sharex=True,
-                                      gridspec_kw={"height_ratios": [1.15, 1]})
+    size = (2 * SIZE_PX[0] / DPI, 2 * SIZE_PX[1] / DPI)
+    if not with_signal:
+        fig, ax = plt.subplots(figsize=size)
+        fig.patch.set_facecolor(SURFACE)
+        return fig, [ax]
+    fig, axes = plt.subplots(2, 1, figsize=size, sharex=True, gridspec_kw={"height_ratios": [1.15, 1]})
     fig.patch.set_facecolor(SURFACE)
-    return fig, top, bottom
+    return fig, list(axes)
 
 
-def _draw_positions(episode: Episode, top: plt.Axes, bottom: plt.Axes) -> None:
-    """Shade both panels while holding and mark each fill on the price line."""
-    held = episode.held
-    for ax in (top, bottom):
+def _draw_positions(episode: Episode, axes: list[plt.Axes]) -> None:
+    """Shade every panel while holding and mark each fill on the price line, the first panel."""
+    held, top = episode.held, axes[0]
+    for ax in axes:
         ax.set_facecolor(SURFACE)
         first = 0
         for i in range(1, len(held) + 1):
@@ -107,12 +116,12 @@ def _draw_positions(episode: Episode, top: plt.Axes, bottom: plt.Axes) -> None:
                     color=LONG if buy else SHORT, zorder=4)
 
 
-def _finish(fig: plt.Figure, top: plt.Axes, bottom: plt.Axes, episode: Episode, signal_label: str,
+def _finish(fig: plt.Figure, axes: list[plt.Axes], episode: Episode, signal_label: str | None,
             handles: list, out: Path) -> Path:
     days = episode.stamps.dt.date
     starts = [i for i in range(len(days)) if i == 0 or days[i] != days[i - 1]]
-    bottom.set_xticks(starts, [pd.Timestamp(days[i]).strftime("%a %d/%m") for i in starts])
-    for ax in (top, bottom):
+    axes[-1].set_xticks(starts, [pd.Timestamp(days[i]).strftime("%a %d/%m") for i in starts])
+    for ax in axes:
         ax.set_axisbelow(True)
         for i in starts[1:]:
             ax.axvline(i, color="#E6E6E6", linewidth=1, zorder=0)
@@ -120,9 +129,10 @@ def _finish(fig: plt.Figure, top: plt.Axes, bottom: plt.Axes, episode: Episode, 
         ax.tick_params(colors=MUTED, length=0)
         for side in ("top", "right"):
             ax.spines[side].set_visible(False)
-    top.set_xlim(0, len(days))
-    top.set_ylabel("Price, points", color=MUTED)
-    bottom.set_ylabel(signal_label, color=MUTED)
+    axes[0].set_xlim(0, len(days))
+    axes[0].set_ylabel("Price, points", color=MUTED)
+    if signal_label:
+        axes[-1].set_ylabel(signal_label, color=MUTED)
     fig.legend(handles=handles, loc="upper left", ncol=len(handles), frameon=False, fontsize=13,
                bbox_to_anchor=(0.045, 1.0), handlelength=1.4, columnspacing=1.2)
     fig.tight_layout(rect=(0, 0, 1, 0.94))
@@ -175,9 +185,9 @@ def basis_episode(market: pipeline.Market) -> Path:
     bars["x"] = bars["Datetime"].map(episode.bar_end)
     low, high = bars["mean"] - z_entry * bars["std"], bars["mean"] + z_entry * bars["std"]
 
-    fig, top, bottom = _figure()
+    fig, (top, bottom) = _figure()
     top.plot(np.arange(len(spot)), spot, color=SPOT, linewidth=1.3)
-    _draw_positions(episode, top, bottom)
+    _draw_positions(episode, [top, bottom])
     bottom.fill_between(bars["x"], low, high, color=BAND, linewidth=0)
     bottom.plot(bars["x"], bars["mean"], color=MUTED, linewidth=1.2, linestyle=(0, (4, 3)))
     bottom.plot(bars["x"], bars["basis"], color=ORANGE, linewidth=2.4)
@@ -204,7 +214,7 @@ def basis_episode(market: pipeline.Market) -> Path:
         Line2D([], [], color=ORANGE, lw=2.4, label="basis F − I"),
         Patch(color="#DDDDDD", label="mean ± z_in sd"),
     ]
-    return _finish(fig, top, bottom, episode, "Basis F − I, points", handles, FIGURES / "basis_episode.png")
+    return _finish(fig, [top, bottom], episode, "Basis F − I, points", handles, FIGURES / "basis_episode.png")
 
 
 def momentum_episode(market: pipeline.Market) -> Path:
@@ -216,8 +226,8 @@ def momentum_episode(market: pipeline.Market) -> Path:
     bars = bars[bars["t"].dt.strftime("%H:%M").isin(momentum.REGULAR_CLOCKS)].copy()
     bars["score"] = bars["t"].map(scores)
 
-    fig, top, bottom = _figure()
-    _draw_positions(episode, top, bottom)
+    fig, (top, bottom) = _figure()
+    _draw_positions(episode, [top, bottom])
     bottom.axhspan(-theta, theta, color=BAND, linewidth=0)
     bottom.axhline(0, color=MUTED, linewidth=1, linestyle=(0, (4, 3)))
     bottom.bar(bars["x"], bars["score"], width=18, color=[ACCENT if abs(s) >= theta else WEAK for s in bars["score"]])
@@ -243,7 +253,47 @@ def momentum_episode(market: pipeline.Market) -> Path:
         Patch(color=WEAK, label="|ŷ| < θ"),
         Patch(color="#DDDDDD", label="−θ to +θ"),
     ]
-    return _finish(fig, top, bottom, episode, "Score ŷ", handles, FIGURES / "momentum_episode.png")
+    return _finish(fig, [top, bottom], episode, "Score ŷ", handles, FIGURES / "momentum_episode.png")
+
+
+def calendar_episode(market: pipeline.Market) -> Path:
+    """One week of Calendar MTW: the Monday short below the first-30-minute low, then the Tuesday–Wednesday long."""
+    episode = Episode(market, pipeline.calendar_mtw_positions(market), *CALENDAR_WINDOW)
+    monday = CALENDAR_WINDOW[0].date()
+    bars = add_ib_low(drop_atc(bars_10m(market.minutes)))
+    ib_low = float(bars.loc[bars["Datetime"].dt.date == monday, "IBLow"].dropna().iloc[0])
+    clock = episode.stamps.dt.strftime("%H:%M")
+    first_day = (episode.stamps.dt.date == monday).to_numpy()
+    ib_end = int(np.flatnonzero(first_day & (clock >= "09:30").to_numpy())[0])
+    window_end = int(np.flatnonzero(first_day & (clock <= "13:09").to_numpy())[-1])
+
+    fig, (ax,) = _figure(with_signal=False)
+    ax.axvspan(0, ib_end, color=BAND, linewidth=0, zorder=0)
+    ax.hlines(ib_low, 0, window_end, color=MUTED, linewidth=1.6, linestyles=(0, (4, 3)))
+    _draw_positions(episode, [ax])
+    entry_price = None
+    for k, i in enumerate(episode.fills):
+        buy = episode.is_buy(i)
+        # Minute stamps run to :29 and :09; the rules name the bar's close, 14:30 and 10:10.
+        when = episode.stamps[i].ceil("10min")
+        if k == 0:
+            text = "Close below that low:\nsell"
+        elif episode.held[i] > 0:
+            text = (f"{when:%H:%M}: buy back, {episode.gain_million(i, entry_price):+.1f}M VND,\n"
+                    "and buy for Tuesday–Wednesday")
+        else:
+            text = f"{when:%a %H:%M}: sell, {episode.gain_million(i, entry_price):+.1f}M VND"
+        entry_price = episode.price[i]
+        ax.annotate(text, xy=(i, episode.price[i]), xytext=(-14 if buy else 14, -26 if buy else 26),
+                    textcoords="offset points", fontsize=13, color=INK, va="top" if buy else "bottom",
+                    ha="right" if buy else "left")
+    handles = [
+        Line2D([], [], color=PRICE, lw=2, label="VN30F1M"),
+        *_position_handles(),
+        Patch(color="#DDDDDD", label="first 30 minutes of Monday"),
+        Line2D([], [], color=MUTED, lw=1.6, linestyle=(0, (4, 3)), label="their low"),
+    ]
+    return _finish(fig, [ax], episode, None, handles, FIGURES / "calendar_episode.png")
 
 
 def main() -> int:
@@ -252,6 +302,7 @@ def main() -> int:
     market = pipeline.load_market(end.date())
     print(basis_episode(market))
     print(momentum_episode(market))
+    print(calendar_episode(market))
     return 0
 
 
