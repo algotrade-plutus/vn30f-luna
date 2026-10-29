@@ -14,6 +14,8 @@
 - yearly_in_sample.png (step 4): in-sample net profit by year of the seven combinations.
 - correlation_*.png: daily-profit correlation of the sleeves as heatmaps
   (in-sample with the starting values; each period with the step-5 ones).
+- in_sample_equity_beside_sleeves.png and correlation_in_sample_beside.png:
+  the step-4 sleeves chart and its correlation matrix sized to share one slide.
 
 Each figure is split into two wide images, written at twice their slide size:
 the sleeves alone (``*_sleeves.png``), then the pairs and all three (``*_combos.png``). Colours are the dataviz
@@ -39,6 +41,7 @@ REPORTS = WORKSPACE / "reports" / "calibrum_1m"
 FIGURES = REPORTS / "figures"
 MILLION_VND_PER_POINT = 0.1  # 1 point = 100,000 VND
 TRADING_DAYS = 250  # as the pipeline's metrics, for trades per year
+LABEL_ROOM_PX = 430  # slide pixels taken by a two-line end label
 
 # White, as the live dashboard: grey grid and text, one blue accent.
 SURFACE, INK, MUTED, GRID, SHADE = "#FFFFFF", "#222222", "#888888", "#E1E1E1", "#F4F4F4"
@@ -138,8 +141,8 @@ def _two_line_labels(ax, shown: dict[str, pd.Series], colours: dict[str, str], s
 
 
 def draw(source: Path, out_stem: Path, size_px: tuple[int, int], mark_periods: bool,
-         with_stats: bool = False) -> list[Path]:
-    """One wide figure per panel: ``<stem>_sleeves.png`` and ``<stem>_combos.png``."""
+         with_stats: bool = False, only: str | None = None) -> list[Path]:
+    """One wide figure per panel: ``<stem>_sleeves.png`` and ``<stem>_combos.png`` (or just ``only``)."""
     curves = _curves(source)
     first = min(curve.index[0] for curve in curves.values())
     last = max(curve.index[-1] for curve in curves.values())
@@ -148,6 +151,8 @@ def draw(source: Path, out_stem: Path, size_px: tuple[int, int], mark_periods: b
     written = []
     plt.rcParams.update({"font.family": FONT, "font.size": FONT_SIZE, "axes.edgecolor": GRID})
     for (title, colours), suffix in zip(PANELS, ("sleeves", "combos")):
+        if only and suffix != only:
+            continue
         shown = {**{combo: curves[combo] for combo in colours}, **references}
         top = max(series.max() for series in shown.values())
         bottom = min(0.0, min(series.min() for series in shown.values()))
@@ -179,7 +184,9 @@ def draw(source: Path, out_stem: Path, size_px: tuple[int, int], mark_periods: b
         ax.tick_params(colors=MUTED, length=0)
         for side in ("top", "right", "left"):
             ax.spines[side].set_visible(False)
-        ax.set_xlim(first, last + (last - first) * (0.37 if stats else 0.17))
+        # Two-line labels need about LABEL_ROOM_PX of the slide whatever the figure's width.
+        room = LABEL_ROOM_PX / (size_px[0] - 75 - LABEL_ROOM_PX) if stats else 0.17
+        ax.set_xlim(first, last + (last - first) * room)
         ax.set_ylabel("Cumulative net profit, million VND", color=MUTED)
         ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda value, _: f"{value:.0f}"))
         fig.tight_layout()
@@ -269,13 +276,15 @@ def draw_correlation(matrices: dict[str, dict], out: Path, size_px: tuple[int, i
 
     Diverging blue (negative) to orange (positive) through a neutral grey at zero;
     every cell carries its value, and the colour scale under the matrices reads by itself.
+    Text shrinks with the figure below 620 px wide; an empty title leaves the heading to the slide.
     """
     from matplotlib.colors import LinearSegmentedColormap
 
     cmap = LinearSegmentedColormap.from_list("diverging", [ACCENT, SHADE, ORANGE])
     names = ["C", "B", "M"]
     labels = [NAMES[n] for n in names]
-    plt.rcParams.update({"font.family": FONT, "font.size": FONT_SIZE + 1})
+    shrink = min(1.0, size_px[0] / (620 * len(matrices)))
+    plt.rcParams.update({"font.family": FONT, "font.size": (FONT_SIZE + 1) * shrink})
     fig, axes = plt.subplots(1, len(matrices), figsize=(2 * size_px[0] / DPI, 2 * size_px[1] / DPI))
     axes = [axes] if len(matrices) == 1 else list(axes)
     fig.patch.set_facecolor(SURFACE)
@@ -285,7 +294,7 @@ def draw_correlation(matrices: dict[str, dict], out: Path, size_px: tuple[int, i
         for i in range(3):
             for j in range(3):
                 ax.text(j, i, f"{values[i, j]:+.2f}".replace("-", "\u2212").replace("+1.00", "1.00"), ha="center",
-                        va="center", color=SURFACE if i == j else INK, fontsize=18, fontweight="bold")
+                        va="center", color=SURFACE if i == j else INK, fontsize=18 * shrink, fontweight="bold")
         ax.set_xticks(range(3), labels, color=INK)
         ax.set_yticks(range(3), labels if ax is axes[0] else [""] * 3, color=INK)
         for spine in ax.spines.values():
@@ -294,13 +303,14 @@ def draw_correlation(matrices: dict[str, dict], out: Path, size_px: tuple[int, i
         ax.set_yticks([0.5, 1.5], minor=True)
         ax.grid(which="minor", color=SURFACE, linewidth=6)
         ax.tick_params(which="both", length=0)
-        ax.set_title(title, color=INK, fontsize=22, pad=14)
-    fig.tight_layout(rect=(0, 0.2, 1, 0.94))
+        if title:
+            ax.set_title(title, color=INK, fontsize=22, pad=14)
+    fig.tight_layout(rect=(0, 0.2, 1, 0.94 if any(matrices) else 1))
     left = min(ax.get_position().x0 for ax in axes)
     right = max(ax.get_position().x1 for ax in axes)
     bar = fig.add_axes((left, 0.1, right - left, 0.035))
     scale = fig.colorbar(image, cax=bar, orientation="horizontal", ticks=[-1, 0, 1])
-    scale.ax.set_xticklabels(["\u22121\nopposite", "0\nunrelated", "+1\ntogether"], color=MUTED, fontsize=FONT_SIZE)
+    scale.ax.set_xticklabels(["\u22121\nopposite", "0\nunrelated", "+1\ntogether"], color=MUTED, fontsize=FONT_SIZE * shrink)
     scale.ax.tick_params(length=0)
     ends = scale.ax.get_xticklabels()
     ends[0].set_horizontalalignment("left")
@@ -360,6 +370,10 @@ def main() -> int:
     for path in draw(REPORTS / "in_sample_baseline.json", FIGURES / "in_sample_equity", (1664, 640), mark_periods=False,
                      with_stats=True):
         print(path)
+    # Step 4 shows the sleeves beside their correlation matrix, so that panel is also drawn narrower.
+    for path in draw(REPORTS / "in_sample_baseline.json", FIGURES / "in_sample_equity_beside", (1140, 640),
+                     mark_periods=False, with_stats=True, only="sleeves"):
+        print(path)
     yearly = json.loads((REPORTS / "in_sample_baseline.json").read_text(encoding="utf-8"))["yearly_net_points"]
     print(draw_yearly(yearly, FIGURES / "yearly_in_sample.png", (980, 520)))
     if (REPORTS / "oos2.json").exists():
@@ -374,6 +388,7 @@ def main() -> int:
         print(draw_correlation({titles[k]: periods[k] for k in titles}, FIGURES / "correlation_periods.png", (1664, 520)))
     baseline = json.loads((REPORTS / "in_sample_baseline.json").read_text(encoding="utf-8"))["correlation"]
     print(draw_correlation({"In-sample, starting values": baseline}, FIGURES / "correlation_in_sample.png", (620, 600)))
+    print(draw_correlation({"": baseline}, FIGURES / "correlation_in_sample_beside.png", (500, 560)))
     return 0
 
 
