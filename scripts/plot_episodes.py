@@ -10,6 +10,7 @@ long (green) or short (red), with a triangle at each fill. Bottom: the signal on
 - momentum_episode.png: the score ŷ of each regular bar against +/- θ
   (θ from momentum_threshold.json).
 
+The legends name the parameters, not their values: the slides illustrate the entry and exit rules.
 Profit labels are before costs. Writes to reports/calibrum_1m/figures/.
 """
 from __future__ import annotations
@@ -201,7 +202,7 @@ def basis_episode(market: pipeline.Market) -> Path:
         Line2D([], [], color=SPOT, lw=2, label="VN30"),
         *_position_handles(),
         Line2D([], [], color=ORANGE, lw=2.4, label="basis F − I"),
-        Patch(color="#DDDDDD", label=f"mean ± {z_entry:g} sd, last {window} bars"),
+        Patch(color="#DDDDDD", label="mean ± z_in sd"),
     ]
     return _finish(fig, top, bottom, episode, "Basis F − I, points", handles, FIGURES / "basis_episode.png")
 
@@ -240,7 +241,7 @@ def momentum_episode(market: pipeline.Market) -> Path:
         *_position_handles(),
         Patch(color=ACCENT, label="|ŷ| ≥ θ"),
         Patch(color=WEAK, label="|ŷ| < θ"),
-        Patch(color="#DDDDDD", label=f"−θ to +θ, θ = {theta:.3f}"),
+        Patch(color="#DDDDDD", label="−θ to +θ"),
     ]
     return _finish(fig, top, bottom, episode, "Score ŷ", handles, FIGURES / "momentum_episode.png")
 
