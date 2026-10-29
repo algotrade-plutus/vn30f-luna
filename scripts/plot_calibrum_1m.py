@@ -41,7 +41,8 @@ REPORTS = WORKSPACE / "reports" / "calibrum_1m"
 FIGURES = REPORTS / "figures"
 MILLION_VND_PER_POINT = 0.1  # 1 point = 100,000 VND
 TRADING_DAYS = 250  # as the pipeline's metrics, for trades per year
-LABEL_ROOM_PX = 430  # slide pixels taken by a two-line end label
+LABEL_ROOM_PX = 480  # slide pixels taken by a two-line end label
+STATS_INK = "#555555"  # the second label line: darker than MUTED so it stays legible on a projector
 
 # White, as the live dashboard: grey grid and text, one blue accent.
 SURFACE, INK, MUTED, GRID, SHADE = "#FFFFFF", "#222222", "#888888", "#E1E1E1", "#F4F4F4"
@@ -122,23 +123,23 @@ def _stacked_positions(ends: dict[str, float], gaps: dict[str, float], top: floa
 
 def _two_line_labels(ax, shown: dict[str, pd.Series], colours: dict[str, str], stats: dict[str, str],
                      top: float, span: float) -> None:
-    """Name and profit in bold, the stats line beneath in grey; benchmarks keep one line."""
+    """Name and profit in bold, the stats line beneath in dark grey; benchmarks keep one line, also dark grey."""
     ends = {name: series.iloc[-1] for name, series in shown.items()}
-    gaps = {name: (0.07 if name in BENCHMARKS else 0.115) * span for name in ends}
+    gaps = {name: (0.07 if name in BENCHMARKS else 0.14) * span for name in ends}
     points_per_unit = (ax.transData.transform((0, 1))[1] - ax.transData.transform((0, 0))[1]) * 72 / DPI
-    for name, y in _stacked_positions(ends, gaps, top).items():
+    for name, y in _stacked_positions(ends, gaps, top + 0.03 * span).items():
         x = shown[name].index[-1]
         if name in BENCHMARKS:
             ax.annotate(f"{NAMES[name]}  {ends[name]:+.0f}M", xy=(x, y), xytext=(10, 0), textcoords="offset points",
-                        va="center", color=MUTED, annotation_clip=False)
+                        va="center", color=STATS_INK, annotation_clip=False)
             continue
         ax.annotate("", xy=(x, ends[name]), xytext=(26, (y - ends[name]) * points_per_unit + 9),
                     textcoords="offset points", annotation_clip=False,
                     arrowprops={"arrowstyle": "-", "color": colours[name], "linewidth": 2.4, "shrinkA": 0, "shrinkB": 3})
         ax.annotate(f"{NAMES.get(name, name)}  {ends[name]:+.0f}M", xy=(x, y), xytext=(32, 9),
                     textcoords="offset points", va="center", color=INK, fontweight="bold", annotation_clip=False)
-        ax.annotate(stats[name], xy=(x, y), xytext=(32, -12), textcoords="offset points", va="center",
-                    color=MUTED, fontsize=12.5, annotation_clip=False)
+        ax.annotate(stats[name], xy=(x, y), xytext=(32, -11), textcoords="offset points", va="center",
+                    color=STATS_INK, fontsize=14.5, annotation_clip=False)
 
 
 def draw(source: Path, out_stem: Path, size_px: tuple[int, int], mark_periods: bool,
