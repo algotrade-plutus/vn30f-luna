@@ -2,7 +2,9 @@
 """Deck figures: cumulative profit in million VND of the seven combinations.
 
 - in_sample_equity_*.png (step 4): in-sample with the starting parameters,
-  from reports/calibrum_1m/in_sample_baseline.json.
+  from reports/calibrum_1m/in_sample_baseline.json; each label adds a second
+  line with Sharpe, max drawdown and trades per year, joined to its line's end
+  by a short leader in the line's colour.
 - full_equity_*.png: in-sample to OOS 2 with the step-5 parameters,
   from reports/calibrum_1m/oos2.json, with the periods marked and the
   out-of-sample years shaded.
@@ -36,6 +38,7 @@ WORKSPACE = Path(__file__).resolve().parents[1]
 REPORTS = WORKSPACE / "reports" / "calibrum_1m"
 FIGURES = REPORTS / "figures"
 MILLION_VND_PER_POINT = 0.1  # 1 point = 100,000 VND
+TRADING_DAYS = 250  # as the pipeline's metrics, for trades per year
 
 # White, as the live dashboard: grey grid and text, one blue accent.
 SURFACE, INK, MUTED, GRID, SHADE = "#FFFFFF", "#222222", "#888888", "#E1E1E1", "#F4F4F4"
@@ -87,12 +90,61 @@ def _label_positions(ends: dict[str, float], gap: float) -> dict[str, float]:
     return placed
 
 
-def draw(source: Path, out_stem: Path, size_px: tuple[int, int], mark_periods: bool) -> list[Path]:
+def _stats_lines(source: Path) -> dict[str, str]:
+    """Second label line per combination: Sharpe, max drawdown and trades per year."""
+    combos = json.loads(source.read_text(encoding="utf-8"))["combos"]
+    return {
+        row["combo"]: f"Sharpe {row['sharpe']:.2f} · DD {row['mdd_pct']:.1f}% · "
+        f"{row['trades'] / (row['sessions'] / TRADING_DAYS):.0f} trades/yr"
+        for row in combos
+    }
+
+
+def _stacked_positions(ends: dict[str, float], gaps: dict[str, float], top: float) -> dict[str, float]:
+    """Like ``_label_positions`` with a gap per label, then pushed down so none rises above ``top``."""
+    placed: dict[str, float] = {}
+    previous = None
+    for name, value in sorted(ends.items(), key=lambda item: item[1]):
+        placed[name] = value if previous is None else max(value, placed[previous] + gaps[previous])
+        previous = name
+    ceiling = top
+    for name in sorted(placed, key=placed.get, reverse=True):
+        if placed[name] <= ceiling:
+            break
+        placed[name] = ceiling
+        ceiling -= gaps[name]
+    return placed
+
+
+def _two_line_labels(ax, shown: dict[str, pd.Series], colours: dict[str, str], stats: dict[str, str],
+                     top: float, span: float) -> None:
+    """Name and profit in bold, the stats line beneath in grey; benchmarks keep one line."""
+    ends = {name: series.iloc[-1] for name, series in shown.items()}
+    gaps = {name: (0.07 if name in BENCHMARKS else 0.115) * span for name in ends}
+    points_per_unit = (ax.transData.transform((0, 1))[1] - ax.transData.transform((0, 0))[1]) * 72 / DPI
+    for name, y in _stacked_positions(ends, gaps, top).items():
+        x = shown[name].index[-1]
+        if name in BENCHMARKS:
+            ax.annotate(f"{NAMES[name]}  {ends[name]:+.0f}M", xy=(x, y), xytext=(10, 0), textcoords="offset points",
+                        va="center", color=MUTED, annotation_clip=False)
+            continue
+        ax.annotate("", xy=(x, ends[name]), xytext=(26, (y - ends[name]) * points_per_unit + 9),
+                    textcoords="offset points", annotation_clip=False,
+                    arrowprops={"arrowstyle": "-", "color": colours[name], "linewidth": 2.4, "shrinkA": 0, "shrinkB": 3})
+        ax.annotate(f"{NAMES.get(name, name)}  {ends[name]:+.0f}M", xy=(x, y), xytext=(32, 9),
+                    textcoords="offset points", va="center", color=INK, fontweight="bold", annotation_clip=False)
+        ax.annotate(stats[name], xy=(x, y), xytext=(32, -12), textcoords="offset points", va="center",
+                    color=MUTED, fontsize=12.5, annotation_clip=False)
+
+
+def draw(source: Path, out_stem: Path, size_px: tuple[int, int], mark_periods: bool,
+         with_stats: bool = False) -> list[Path]:
     """One wide figure per panel: ``<stem>_sleeves.png`` and ``<stem>_combos.png``."""
     curves = _curves(source)
     first = min(curve.index[0] for curve in curves.values())
     last = max(curve.index[-1] for curve in curves.values())
     references = _benchmarks(first, last)
+    stats = _stats_lines(source) if with_stats else None
     written = []
     plt.rcParams.update({"font.family": FONT, "font.size": FONT_SIZE, "axes.edgecolor": GRID})
     for (title, colours), suffix in zip(PANELS, ("sleeves", "combos")):
@@ -119,18 +171,6 @@ def draw(source: Path, out_stem: Path, size_px: tuple[int, int], mark_periods: b
             if name in references:
                 ax.plot(references[name].index, references[name].to_numpy(), color=colour, linewidth=1.8,
                         linestyle=dash)
-        ends = {name: series.iloc[-1] for name, series in shown.items()}
-        for combo, y in _label_positions(ends, gap=0.06 * span).items():
-            ax.annotate(
-                f"{NAMES.get(combo, combo)}  {ends[combo]:+.0f}M",
-                xy=(shown[combo].index[-1], y),
-                xytext=(10, 0),
-                textcoords="offset points",
-                va="center",
-                color=MUTED if combo in BENCHMARKS else INK,
-                fontweight="bold" if combo == "C+B+M" else "normal",
-                annotation_clip=False,
-            )
         ax.axhline(0, color=MUTED, linewidth=1)
         ax.grid(axis="y", color=GRID, linewidth=1)
         ax.set_ylim(bottom - 0.03 * span, top + (0.14 if mark_periods else 0.05) * span)
@@ -139,10 +179,27 @@ def draw(source: Path, out_stem: Path, size_px: tuple[int, int], mark_periods: b
         ax.tick_params(colors=MUTED, length=0)
         for side in ("top", "right", "left"):
             ax.spines[side].set_visible(False)
-        ax.set_xlim(first, last + (last - first) * 0.17)
+        ax.set_xlim(first, last + (last - first) * (0.37 if stats else 0.17))
         ax.set_ylabel("Cumulative net profit, million VND", color=MUTED)
         ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda value, _: f"{value:.0f}"))
         fig.tight_layout()
+        if stats:
+            # Leaders are placed in points, so the layout must be final first.
+            fig.canvas.draw()
+            _two_line_labels(ax, shown, colours, stats, top, span)
+        else:
+            ends = {name: series.iloc[-1] for name, series in shown.items()}
+            for combo, y in _label_positions(ends, gap=0.06 * span).items():
+                ax.annotate(
+                    f"{NAMES.get(combo, combo)}  {ends[combo]:+.0f}M",
+                    xy=(shown[combo].index[-1], y),
+                    xytext=(10, 0),
+                    textcoords="offset points",
+                    va="center",
+                    color=MUTED if combo in BENCHMARKS else INK,
+                    fontweight="bold" if combo == "C+B+M" else "normal",
+                    annotation_clip=False,
+                )
         out = out_stem.with_name(f"{out_stem.name}_{suffix}.png")
         out.parent.mkdir(parents=True, exist_ok=True)
         fig.savefig(out, dpi=DPI, facecolor=SURFACE)
@@ -300,7 +357,8 @@ def draw_yearly(yearly: dict[str, dict], out: Path, size_px: tuple[int, int]) ->
 
 
 def main() -> int:
-    for path in draw(REPORTS / "in_sample_baseline.json", FIGURES / "in_sample_equity", (1664, 640), mark_periods=False):
+    for path in draw(REPORTS / "in_sample_baseline.json", FIGURES / "in_sample_equity", (1664, 640), mark_periods=False,
+                     with_stats=True):
         print(path)
     yearly = json.loads((REPORTS / "in_sample_baseline.json").read_text(encoding="utf-8"))["yearly_net_points"]
     print(draw_yearly(yearly, FIGURES / "yearly_in_sample.png", (980, 520)))
